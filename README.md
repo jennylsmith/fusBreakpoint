@@ -19,3 +19,5 @@ The best approach is parallelization since each sample and fusion are treated in
 ```
 
 ```
+
+[![Travis build status](https://travis-ci.com/jennylsmith/fusBreakpoint.svg?branch=master)](https://travis-ci.com/jennylsmith/fusBreakpoint)
