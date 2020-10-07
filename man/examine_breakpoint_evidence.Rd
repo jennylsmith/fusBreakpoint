@@ -39,7 +39,14 @@ examine_breakpoint_evidence(
 Title
 }
 \examples{
-examine_breakpoint_evidence("PAZZUM.03A.01R", breakpoint=list("16:1250000|16:1260000"), my_bam_manifest,
-chr_lengths, my_pdict_obj, cicero_contig_df, transabyss_contig_df)
+\dontrun{
+my_seqs <- data.frame(Name=paste0("seq",1:10),Sequence=rep(c("ATCGCCCGTTA"), 10))
+my_files_df <- data.frame(Sample="PAZZUM.03A.01R", filepath=dir("/path/to/sample.bam"))
+chr_lengths <- c("16"=24000000)
 
+my_pdict_obj <- create_custom_pdict(theoretical_seqs_df=my_seqs)
+
+examine_breakpoint_evidence("PAZZUM.03A.01R", breakpoint=list("16:1250000|16:1260000"),
+my_files_df,chr_lengths, my_pdict_obj, cicero_contig_df, transabyss_contig_df)
+}
 }

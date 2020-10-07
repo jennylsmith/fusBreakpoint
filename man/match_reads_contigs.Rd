@@ -22,5 +22,16 @@ match_reads_contigs(Sample_ID, pdict_obj, RNAseqReads, contigSeqs = NULL)
 Title
 }
 \examples{
-match_reads_contigs("PAZZUM.03A.01R", my_pdict_obj, my_bam_reads, contigSeqs=my_contigs)
+\dontrun{
+my_seqs <- data.frame(Name=paste0("seq",1:10),Sequence=rep(c("ATCGCCCGTTA"), 10))
+my_files_df <- data.frame(Sample="PAZZUM.03A.01R", filepath=dir("/path/to/sample.bam"))
+
+my_contigs <- data.frame(contig="AATGGCTATC", Name=paste0("seq",1)) \%>\% pull(contig,name=Name)
+my_contigs <- Biostrings::DNAStringSet(my_contigs)
+
+my_pdict_obj <- create_custom_pdict(theoretical_seqs_df=my_seqs)
+my_bam_reads <- subset_bam("PAZZUM.03A.01R", breakpoint=list("16:1250000|16:1260000"), my_files_df)
+
+evidence <- match_reads_contigs("PAZZUM.03A.01R", my_pdict_obj, my_bam_reads, contigSeqs=my_contigs)
+}
 }

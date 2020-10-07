@@ -39,6 +39,8 @@ subset_bam(
 Title
 }
 \examples{
-subset_bam("PAZZUM.03A.01R", breakpoint=list("16:1250000|16:1260000"), "my_files_df")
-
+\dontrun{
+my_files_df <- data.frame(Sample="PAZZUM.03A.01R", filepath=dir("/path/to/sample.bam"))
+subset_bam("PAZZUM.03A.01R", breakpoint=list("16:1250000|16:1260000"), my_files_df)
+}
 }

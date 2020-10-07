@@ -28,5 +28,6 @@ Imports:
     IRanges,
     Rsamtools,
     GenomicRanges,
-    S4Vectors
+    S4Vectors,
+    tidyr
 VignetteBuilder: knitr

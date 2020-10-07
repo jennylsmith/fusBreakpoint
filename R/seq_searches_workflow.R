@@ -19,8 +19,10 @@
 #' @export
 #'
 #' @examples
-#' subset_bam("PAZZUM.03A.01R", breakpoint=list("16:1250000|16:1260000"), "my_files_df")
-#'
+#' \dontrun{
+#' my_files_df <- data.frame(Sample="PAZZUM.03A.01R", filepath=dir("/path/to/sample.bam"))
+#' subset_bam("PAZZUM.03A.01R", breakpoint=list("16:1250000|16:1260000"), my_files_df)
+#'}
 #' @import dplyr
 subset_bam <- function(Sample_ID, breakpoint=NULL,
                        fusion_data=NULL,
@@ -136,6 +138,56 @@ subset_bam <- function(Sample_ID, breakpoint=NULL,
 
 }
 
+#### Create pdict for sequence searches
+#' Title
+#'
+#' @param theoretical_seqs_df a dataframe with computationally derived exon junction sequences
+#'
+#' @return
+#' @export
+#'
+#' @examples
+#'my_seqs <- data.frame(Name=paste0("seq",1:10),Sequence=rep(c("ATCGCCCGTTA"), 10))
+#'my_pdict_obj <- create_custom_pdict(theoretical_seqs_df=my_seqs)
+#'
+#' @import dplyr
+create_custom_pdict <- function(theoretical_seqs_df){
+
+  #computationsal Breakpoint sequences per transcript isoform to search for
+  #this will need to be run 2-4x bc the nearly 10k sequences requires way too much memory
+  nr <- nrow(theoretical_seqs_df)
+  print(paste("There are ",nr," fusion sequences to examine."))
+  if(nr > 500){
+    slices <- split(1:nr, cut(1:nr, 4, labels = FALSE))
+  }else{
+    slices <- list(1:nr)
+  }
+
+  #Create PDict object with the computationally derived exon-exon junction sequences to search for.
+  seqExonsList <- list()
+  for(i in 1:length(slices)){
+    seqExons <- theoretical_seqs_df %>%
+      dplyr::slice(slices[[i]]) %>%
+      pull(Sequence, name=Name) %>%
+      Biostrings::DNAStringSet()
+    #Add reverse compliment to search
+    seqExons <- c(seqExons,  magrittr::set_names(Biostrings::reverseComplement(seqExons),
+                                                 paste0("revComp",names(seqExons))))
+    seqExons <- seqExons[order(names(seqExons))]
+    seqExons <- Biostrings::PDict(seqExons)  #(3) later matchPdict can only be used with max.mismatch=0.???
+    seqExonsList[[i]] <- seqExons
+
+    rm(seqExons)
+  }
+
+  message(paste("Finished PDict processing with",sum(sapply(seqExonsList, length)),"theoretical fusion sequences."))
+
+
+  return(seqExonsList)
+}
+
+
+
 
 ######### Sequence Pattern Matching
 
@@ -150,7 +202,18 @@ subset_bam <- function(Sample_ID, breakpoint=NULL,
 #' @export
 #'
 #' @examples
-#' match_reads_contigs("PAZZUM.03A.01R", my_pdict_obj, my_bam_reads, contigSeqs=my_contigs)
+#' \dontrun{
+#' my_seqs <- data.frame(Name=paste0("seq",1:10),Sequence=rep(c("ATCGCCCGTTA"), 10))
+#' my_files_df <- data.frame(Sample="PAZZUM.03A.01R", filepath=dir("/path/to/sample.bam"))
+#'
+#' my_contigs <- data.frame(contig="AATGGCTATC", Name=paste0("seq",1)) %>% pull(contig,name=Name)
+#' my_contigs <- Biostrings::DNAStringSet(my_contigs)
+#'
+#' my_pdict_obj <- create_custom_pdict(theoretical_seqs_df=my_seqs)
+#' my_bam_reads <- subset_bam("PAZZUM.03A.01R", breakpoint=list("16:1250000|16:1260000"), my_files_df)
+#'
+#' evidence <- match_reads_contigs("PAZZUM.03A.01R", my_pdict_obj, my_bam_reads, contigSeqs=my_contigs)
+#' }
 #' @import dplyr
 match_reads_contigs <- function(Sample_ID, pdict_obj, RNAseqReads, contigSeqs=NULL){
 
@@ -207,7 +270,7 @@ match_reads_contigs <- function(Sample_ID, pdict_obj, RNAseqReads, contigSeqs=NU
       mutate_at(vars(matches("contig")), ~sum(.)) %>%
       ungroup() %>%
       #make into long format and substitue a hit ==1 to hit == contig.sequence
-      gather(Contig.Name, Contig.Match, matches("^contig")) %>%
+      tidyr::gather(Contig.Name, Contig.Match, matches("^contig")) %>%
       group_by(Contig.Name) %>%
       mutate_at(vars(Contig.Match), ~case_when(
         . == 0 ~ as.character(.),
@@ -232,57 +295,6 @@ match_reads_contigs <- function(Sample_ID, pdict_obj, RNAseqReads, contigSeqs=NU
 }
 
 
-#### Create pdict for sequence searches
-#' Title
-#'
-#' @param theoretical_seqs_df a dataframe with computationally derived exon junction sequences
-#'
-#' @return
-#' @export
-#'
-#' @examples
-#'my_seqs <- data.frame(Name=as.character(1:10),Sequence=rep(c("ATCGCCCGTTA"), 10))
-#'my_pdict_obj <- create_custom_pdict(theoretical_seqs_df=my_seqs)
-#'
-#' @import dplyr
-create_custom_pdict <- function(theoretical_seqs_df){
-
-  #computationsal Breakpoint sequences per transcript isoform to search for
-  #this will need to be run 2-4x bc the nearly 10k sequences requires way too much memory
-  nr <- nrow(theoretical_seqs_df)
-  print(paste("There are ",nr," fusion sequences to examine."))
-  if(nr > 500){
-    slices <- split(1:nr, cut(1:nr, 4, labels = FALSE))
-  }else{
-    slices <- list(1:nr)
-  }
-
-  #Create PDict object with the computationally derived exon-exon junction sequences to search for.
-  seqExonsList <- list()
-  for(i in 1:length(slices)){
-    seqExons <- theoretical_seqs_df %>%
-      dplyr::slice(slices[[i]]) %>%
-      pull(Sequence, name=Name) %>%
-      Biostrings::DNAStringSet()
-    #Add reverse compliment to search
-    seqExons <- c(seqExons,  magrittr::set_names(Biostrings::reverseComplement(seqExons),
-                                                 paste0("revComp",names(seqExons))))
-    seqExons <- seqExons[order(names(seqExons))]
-    seqExons <- Biostrings::PDict(seqExons)  #(3) later matchPdict can only be used with max.mismatch=0.???
-    seqExonsList[[i]] <- seqExons
-
-    rm(seqExons)
-  }
-
-  message(paste("Finished PDict processing with",sum(sapply(seqExonsList, length)),"theoretical fusion sequences."))
-
-
-  return(seqExonsList)
-}
-
-
-
-
 
 ######## workflow
 #' Title
@@ -300,9 +312,16 @@ create_custom_pdict <- function(theoretical_seqs_df){
 #' @export
 #'
 #' @examples
-#'examine_breakpoint_evidence("PAZZUM.03A.01R", breakpoint=list("16:1250000|16:1260000"), my_bam_manifest,
-#'chr_lengths, my_pdict_obj, cicero_contig_df, transabyss_contig_df)
+#' \dontrun{
+#' my_seqs <- data.frame(Name=paste0("seq",1:10),Sequence=rep(c("ATCGCCCGTTA"), 10))
+#' my_files_df <- data.frame(Sample="PAZZUM.03A.01R", filepath=dir("/path/to/sample.bam"))
+#' chr_lengths <- c("16"=24000000)
 #'
+#' my_pdict_obj <- create_custom_pdict(theoretical_seqs_df=my_seqs)
+#'
+#' examine_breakpoint_evidence("PAZZUM.03A.01R", breakpoint=list("16:1250000|16:1260000"),
+#' my_files_df,chr_lengths, my_pdict_obj, cicero_contig_df, transabyss_contig_df)
+#'}
 #' @import dplyr
 examine_breakpoint_evidence <- function(Sample_ID,
                                         fusion_data=NULL,
