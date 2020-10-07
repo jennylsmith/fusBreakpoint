@@ -16,9 +16,17 @@ RoxygenNote: 7.1.1
 URL: https://github.com/jennylsmith/fusBreakpoint
 BugReports: https://github.com/jennylsmith/fusBreakpoint/issues
 Suggests: 
-    testthat
+    testthat,
+    knitr,
+    rmarkdown
 Imports: 
     dplyr,
     stringr,
     tibble,
-    magrittr
+    magrittr,
+    Biostrings,
+    IRanges,
+    Rsamtools,
+    GenomicRanges,
+    S4Vectors
+VignetteBuilder: knitr
