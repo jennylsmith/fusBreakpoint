@@ -152,7 +152,7 @@ subset_bam <- function(Sample_ID, breakpoint=NULL,
 #' @export
 #'
 #' @examples
-#'my_seqs <- data.frame(Name=paste0("seq",1:10),Sequence=rep(c("ATCGCCCGTTA"), 10))
+#'my_seqs <- data.frame(Name=as.character(1:10),Sequence=rep(c("ATCGCCCGTTA"), 10))
 #'my_pdict_obj <- create_custom_pdict(theoretical_seqs_df=my_seqs)
 #'
 #' @import dplyr
@@ -173,12 +173,17 @@ create_custom_pdict <- function(theoretical_seqs_df){
   for(i in 1:length(slices)){
     seqExons <- theoretical_seqs_df %>%
       dplyr::slice(slices[[i]]) %>%
-      pull(Sequence, name=Name) %>%
+      dplyr::pull(Sequence, name=Name) %>%
       Biostrings::DNAStringSet()
     #Add reverse compliment to search
-    seqExons <- c(seqExons,  magrittr::set_names(Biostrings::reverseComplement(seqExons),
-                                                 paste0("revComp",names(seqExons))))
+    revComp <- Biostrings::reverseComplement(seqExons)
+    names(revComp) <- paste0("revComp",names(seqExons))
+
+    #combine the sequences and the reverse complement  into one DNAstringset
+    seqExons <- c(seqExons, revComp)
     seqExons <- seqExons[order(names(seqExons))]
+
+    #convert into pdict
     seqExons <- Biostrings::PDict(seqExons)  #(3) later matchPdict can only be used with max.mismatch=0.???
     seqExonsList[[i]] <- seqExons
 
