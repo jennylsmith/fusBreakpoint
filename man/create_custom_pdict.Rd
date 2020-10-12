@@ -2,7 +2,7 @@
 % Please edit documentation in R/seq_searches_workflow.R
 \name{create_custom_pdict}
 \alias{create_custom_pdict}
-\title{Title}
+\title{Create Biostrings pdict (pattern dictionary) from a dataframe for effecient sequence searches of RNAseq reads.}
 \usage{
 create_custom_pdict(theoretical_seqs_df)
 }
@@ -13,7 +13,7 @@ create_custom_pdict(theoretical_seqs_df)
 
 }
 \description{
-Title
+Create Biostrings pdict (pattern dictionary) from a dataframe for effecient sequence searches of RNAseq reads.
 }
 \examples{
 my_seqs <- data.frame(Name=paste0("seq",1:10),Sequence=rep(c("ATCGCCCGTTA"), 10))

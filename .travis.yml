@@ -1,4 +1,47 @@
 # R for travis: see documentation at https://docs.travis-ci.com/user/languages/r
 
-language: R
-cache: packages
+#language: R
+#cache: packages
+
+
+# Sample .travis.yml for R projects.
+#
+# See README.md for instructions, or for more configuration options,
+# see the wiki:
+#   https://github.com/craigcitro/r-travis/wiki
+#http://jtleek.com/protocols/travis_bioc_devel/
+
+language: c
+
+env:
+  global:
+    - BIOC_USE_DEVEL="FALSE"
+
+before_install:
+  - curl -OL http://raw.github.com/craigcitro/r-travis/master/scripts/travis-tool.sh
+  - chmod 755 ./travis-tool.sh
+  - ./travis-tool.sh bootstrap
+
+install:
+  - ./travis-tool.sh install_bioc S4Vectors
+  - ./travis-tool.sh install_bioc IRanges
+  - ./travis-tool.sh install_bioc Biostrings
+  - ./travis-tool.sh install_bioc Rsamtools
+  - ./travis-tool.sh install_bioc GenomicRanges
+  - ./travis-tool.sh install_r dplyr
+  - ./travis-tool.sh install_r stringr
+  - ./travis-tool.sh install_r tibble
+  - ./travis-tool.sh install_r magrittr
+  - ./travis-tool.sh install_r tidyr
+  - ./travis-tool.sh install_r knitr
+  - ./travis-tool.sh install_bioc_deps
+
+script: ./travis-tool.sh run_tests
+
+after_failure:
+  - ./travis-tool.sh dump_logs
+
+notifications:
+  email:
+    on_success: change
+    on_failure: change

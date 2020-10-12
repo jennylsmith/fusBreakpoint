@@ -2,7 +2,7 @@
 % Please edit documentation in R/seq_searches_workflow.R
 \name{subset_bam}
 \alias{subset_bam}
-\title{Title}
+\title{Subset a bam for specific chromome(s) or ranges based on input breakpoint or fusion data file.}
 \usage{
 subset_bam(
   Sample_ID,
@@ -18,7 +18,7 @@ subset_bam(
 \arguments{
 \item{Sample_ID}{character string of patient ID}
 
-\item{breakpoint}{list class with breakpoint string}
+\item{breakpoint}{character vector with breakpoint string (can be named)}
 
 \item{fusion_data}{dataframe with fusion results from CICERO, TransAbyss, and STAR-Fusion concatenated}
 
@@ -36,7 +36,7 @@ subset_bam(
 
 }
 \description{
-Title
+Subset a bam for specific chromome(s) or ranges based on input breakpoint or fusion data file.
 }
 \examples{
 \dontrun{

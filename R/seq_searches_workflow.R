@@ -4,10 +4,10 @@
 
 
 ###### Subset BAMS
-#' Title
+#' Subset a bam for specific chromome(s) or ranges based on input breakpoint or fusion data file.
 #'
 #' @param Sample_ID character string of patient ID
-#' @param breakpoint list class with breakpoint string
+#' @param breakpoint  character vector with breakpoint string (can be named)
 #' @param fusion_data dataframe with fusion results from CICERO, TransAbyss, and STAR-Fusion concatenated
 #' @param file_manifest dataframe with Sample_ID and the full file path of the BAM file.
 #' @param by_chr boolean - get reads mapped to the entire chromosome containing the breakpoint or just +/- 1e6 bp from breakpoint
@@ -42,8 +42,9 @@ subset_bam <- function(Sample_ID, breakpoint=NULL,
   }
 
   if(all(is.null(breakpoint), is.null(fusion_data))){
-    message("Breakpoint and fusion data cannot both be NULL. Please provide either a breakpoint in list
-    with the format of chr:basepairs|chr:basepairs, for example list(CBFB.MYH11=16:15814908|16:67116211). List can be any length.Or a dataframe with the desired fusion data.")
+    message("Breakpoint and fusion data cannot both be NULL. Please provide either a breakpoint as character vector
+    with the format of `chr:basepairs|chr:basepairs`, for example c(CBFB.MYH11=\"16:15814908|16:67116211\", KMT2A.MLLT10=\"10:21959378|11:118353210\").
+    Or fusion data  is a dataframe with the fusion breakpoints.")
     return(NULL)
   }
 
@@ -58,7 +59,6 @@ subset_bam <- function(Sample_ID, breakpoint=NULL,
     #Define breakpoints
     breakpoint <- pull(fusion_data, "breakpoint.TA")
     breakpoint <- ifelse(is.na(breakpoint), pull(fusion_data, "Breakpoints.STAR"), breakpoint)
-    breakpoint <- stringr::str_split(breakpoint,"\\|")
 
     #Define output file name
     fname <- paste0(Sample_ID,"_",fusion,".bam")
@@ -76,13 +76,18 @@ subset_bam <- function(Sample_ID, breakpoint=NULL,
       pos <- IRanges::IRanges(start=pos-1e6, end=pos+1e6)
     }else{
       chr <- x[1]
-      #this is sepecific to GRCh37-lite. Will need to make more generalized ASAP.
-      pattern <- paste0("chromosome ",chr,", GRCh37 primary reference assembly") #for full annotated chrs
+      #this is sepecific to GRCh37-lite and reference from Starfusion CTAT.
+      #Will need to make more generalized ASAP.
+      pattern <- paste(c(paste0("chromosome ",chr,","),
+                       paste0(chr,"\\s[0-9XYMT]{1,2}$")),
+                       collapse = "|")
       pos <- IRanges::IRanges(start=0, end=Seqlens[grep(pattern,names(Seqlens))])
     }
     return(pos)
   }
 
+  #Define breakpoints and basepair ranges
+  breakpoint <- stringr::str_split(breakpoint,"\\|")
   if(length(breakpoint) > 1){
     seqnames <- sapply(breakpoint,
                        function(chr_pos) sapply(stringr::str_split(chr_pos,":"),function(chr) chr[1]))
@@ -139,7 +144,7 @@ subset_bam <- function(Sample_ID, breakpoint=NULL,
 }
 
 #### Create pdict for sequence searches
-#' Title
+#' Create Biostrings pdict (pattern dictionary) from a dataframe for effecient sequence searches of RNAseq reads.
 #'
 #' @param theoretical_seqs_df a dataframe with computationally derived exon junction sequences
 #'
@@ -191,7 +196,7 @@ create_custom_pdict <- function(theoretical_seqs_df){
 
 ######### Sequence Pattern Matching
 
-#' Title
+#'  Sequence pattern matching of RNAseq reads and counts the number of breakpoint junction reads.
 #'
 #' @param Sample_ID character string of patient ID
 #' @param pdict_obj pdict class object form biostrings.
@@ -297,7 +302,7 @@ match_reads_contigs <- function(Sample_ID, pdict_obj, RNAseqReads, contigSeqs=NU
 
 
 ######## workflow
-#' Title
+#' Workflow wrapper to extract RNAseq reads and search for custom breakpoint exon junction sequences.
 #'
 #' @param Sample_ID character string of patient ID
 #' @param fusion_data dataframe with fusion results from CICERO, TransAbyss, and STAR-Fusion concatenated
@@ -332,7 +337,7 @@ examine_breakpoint_evidence <- function(Sample_ID,
                                         cicero.contig,
                                         TA.contigs){
 
-
+  print(paste("Processing Sample:",Sample_ID))
 
   #Begin subsetting the RNAseq BAM file reads
   BAM <- subset_bam(Sample_ID = Sample_ID,
@@ -344,9 +349,18 @@ examine_breakpoint_evidence <- function(Sample_ID,
                     Seqlens=Seqlens)
 
   #Select only the RNAseq reads to keep in memory
-  #This is based on a single fusion -- need to check this with interchromosomal fusions
-  RNAseq <- BAM[[1]]$seq
-  names(RNAseq) <- BAM[[1]]$qname
+  seqs <- lapply(BAM, `[[`, "seq")
+  read_names <- lapply(BAM, `[[`, "qname")
+  print(paste("Subsetting BAM for the Ranges:", paste(names(seqs),collapse="; " )))
+
+
+  #for loop to concatentate the ranges into a single DNAstringset object.
+  RNAseq <- Biostrings::DNAStringSet() #unlist() doesnt work with the seqs object for some reason, and Ive tried all lapply/sapply possibities.
+  for(i in 1:length(seqs)){
+    reads <- seqs[[i]]
+    names(reads) <- read_names[[i]]
+    RNAseq <- Biostrings::DNAStringSet(c(RNAseq,reads))
+  }
   rm(BAM)
 
   message(paste("Finished subsetting  BAM file for RNAseq read sequences.

@@ -2,7 +2,7 @@
 % Please edit documentation in R/seq_searches_workflow.R
 \name{match_reads_contigs}
 \alias{match_reads_contigs}
-\title{Title}
+\title{Sequence pattern matching of RNAseq reads and counts the number of breakpoint junction reads.}
 \usage{
 match_reads_contigs(Sample_ID, pdict_obj, RNAseqReads, contigSeqs = NULL)
 }
@@ -19,7 +19,7 @@ match_reads_contigs(Sample_ID, pdict_obj, RNAseqReads, contigSeqs = NULL)
 
 }
 \description{
-Title
+Sequence pattern matching of RNAseq reads and counts the number of breakpoint junction reads.
 }
 \examples{
 \dontrun{

@@ -2,7 +2,7 @@
 % Please edit documentation in R/seq_searches_workflow.R
 \name{examine_breakpoint_evidence}
 \alias{examine_breakpoint_evidence}
-\title{Title}
+\title{Workflow wrapper to extract RNAseq reads and search for custom breakpoint exon junction sequences.}
 \usage{
 examine_breakpoint_evidence(
   Sample_ID,
@@ -36,7 +36,7 @@ examine_breakpoint_evidence(
 
 }
 \description{
-Title
+Workflow wrapper to extract RNAseq reads and search for custom breakpoint exon junction sequences.
 }
 \examples{
 \dontrun{
