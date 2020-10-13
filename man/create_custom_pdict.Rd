@@ -16,7 +16,7 @@ create_custom_pdict(theoretical_seqs_df)
 Create Biostrings pdict (pattern dictionary) from a dataframe for effecient sequence searches of RNAseq reads.
 }
 \examples{
-my_seqs <- data.frame(Name=paste0("seq",1:10),Sequence=rep(c("ATCGCCCGTTA"), 10))
+my_seqs <- data.frame(Name=as.character(1:10),Sequence=rep(c("ATCGCCCGTTA"), 10))
 my_pdict_obj <- create_custom_pdict(theoretical_seqs_df=my_seqs)
 
 }

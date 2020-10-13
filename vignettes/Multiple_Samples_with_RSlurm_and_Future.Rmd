@@ -1,0 +1,422 @@
+---
+title: "Multiple_Samples_with_RSlurm"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Multiple_Samples_with_RSlurm}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+# Set-up
+
+```{r setup, message=FALSE}
+knitr::opts_knit$set(
+  root.dir = file.path(PROJHOME,"2020.09.15_RNAseq_Fusion_Breakpoints"))
+
+library(fusBreakpoint)
+library(magrittr)
+library(dplyr)
+library(tibble)
+library(stringr)
+```
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  tidy.opts=list(width.cutoff=50),
+  tidy=TRUE, 
+  fig.align='center',
+  fig.width = 10, 
+  fig.height = 10
+)
+```
+
+
+# Define Functions
+
+```{r}
+#Function to great a fusion category by alphabetical order, for easier grouping variables when dealing with the reciprocal fusions
+fusion_category <- function(geneA,geneB){
+  fusion <- c(geneA,geneB)[order(c(geneA,geneB))]
+  fusion <- paste(fusion, collapse="-")
+  return(fusion)
+}
+```
+
+```{r}
+#Function to sort breakpoints for easier matching of identical breakpoints across different datasets
+order_breakpoints <- function(brkpt){
+  split <- str_split(brkpt, pattern = "\\|")[[1]] 
+  ord <- split[order(split)]
+  ord <- paste(ord,collapse = "|")
+  return(ord)
+}
+```
+
+
+# ClinData
+
+```{r}
+merged <- read.csv(file.path(CDE,"Merged/TARGET_AML_0531_1031_merged_CDEs_9.18.20.csv"))
+
+merged <- merged %>% 
+  filter(USI != "Unknown") %>% 
+  as.data.frame() %>%
+  set_rownames(.$USI)
+
+dim(merged)
+```
+
+```{r}
+IDmap <- read.csv("References/St.Jude_TARGET_CICERO_Sample_IDmap.csv")
+
+head(IDmap)
+```
+ 
+ 
+# Read in File Manifests 
+
+```{r}
+polyA_RNAseq_files <- read.csv("BAM_Manifests/TARGET_AML_polyA_RNAseq_Bam_Manifest_10.02.20.csv", 
+                               row.names = 1) 
+
+
+dim(polyA_RNAseq_files)
+table(duplicated(polyA_RNAseq_files$Sample)) #FALSE
+```
+
+```{r}
+RBD_RNAseq_files <- read.csv("BAM_Manifests/TARGET_AML_Ribodepleted_RNAseq_Bam_Manifest_10.02.20.csv",row.names = 1)
+
+dim(RBD_RNAseq_files)
+table(duplicated(RBD_RNAseq_files$Sample)) #FALSE
+```
+
+```{r}
+SJ_RNAseq_files <- read.csv("BAM_Manifests/St.Jude_AML_ALL_RNAseq_Bam_Manifest_10.09.20.csv")
+
+dim(SJ_RNAseq_files)
+head(SJ_RNAseq_files)
+```
+
+
+# Read in the Contig Sequences
+
+```{r message=FALSE, warning=FALSE}
+TA.contigs <- read.csv("Data/TransAbyss_Contig_Sequences.csv")
+
+# head(TA.contigs)
+dim(TA.contigs) #54,878     4
+```
+
+```{r message=FALSE}
+cicero.contig <- read.csv("Data/CICERO_Contig_Sequences.csv")
+
+# head(cicero.contig)
+dim(cicero.contig) #158,972 
+```
+
+
+# Read in the Theoretical Junc Sequences
+
+```{r}
+theoretical_data.collapsed <- read.csv("Data/Theoretical_Fusion_Breakpoint_Junctions_per_Transcript.csv")
+
+head(theoretical_data.collapsed)
+dim(theoretical_data.collapsed) # 1955    4
+``` 
+
+
+# Chromosome Lengths
+
+```{r}
+seqlens <- read.delim("Data/Grch37.lite_chrom_lengths.txt") %>% 
+  rownames_to_column("chr") %>%
+  pull(x, name=chr)
+
+head(seqlens)
+```
+
+```{r}
+seqlens.ctat <- read.delim("Data/Grch37.ctat_chrom_lengths.txt") %>% 
+  rownames_to_column("chr") %>%
+  pull(x, name=chr)
+
+head(seqlens.ctat)
+```
+
+
+# Define Fusion Groups 
+
+```{r}
+Groups <- unique(theoretical_data.collapsed$Fusion.Category)
+
+Groups
+```
+
+
+# Define defaults
+
+I just need a breakpoint, but since I'll be searching for evidence in the RNAseq reads for the whole chromosome, don't need to exact breakpoint junction per patient. Just need a common one, such as 
+
+```{r}
+common_breakpoints <- read.csv("Data/TARGET_AML_Most_Common_RNAseq_Breakpoints.csv", 
+                               row.names = 1) 
+
+
+common_breakpoints 
+```
+
+
+
+# Run the Function 
+
+## Rslurm 
+
+```{r}
+outdir <- file.path(SCRATCH,'jlsmith3/Fusion_Breakpoints')
+sopt <- list(nodes='1', 'cpus-per-task'='2',
+             'partition'='campus-new', 'mem'='40G',
+             'time' = '48:00:00', 'mail-type'='FAIL,END',
+             'mail-user'='jlsmith3@fredhutch.org') 
+```
+
+
+### polyA
+
+```{r eval=FALSE}
+setwd(outdir)
+for ( i in 1:length(Groups) ){ 
+  # The fusion group to investigate
+  group <- Groups[i]
+  breakpoint <- common_breakpoints[group,"breakpoint"]
+  print(group)
+  print(breakpoint)
+  
+  #Filter the sequence data for the fusion to investigate
+  fusion_theoretical_input <- filter(theoretical_data.collapsed, Fusion.Category == group)
+  cicero.contig_input <- filter(cicero.contig, Fusion.Category ==  group)
+  TA.contigs_input <- filter(TA.contigs, Fusion.Category == group)
+  
+  # I forgot seqs need to be the same width for pdict objects. hopefully will change soon.
+  try(
+    mut20 <- create_custom_pdict(theoretical_seqs_df = filter(fusion_theoretical_input,
+                                                              grepl("Mutseq20", Name))), silent=T)
+  try(
+    mut25 <- create_custom_pdict(theoretical_seqs_df = filter(fusion_theoretical_input,
+                                                            !grepl("Mutseq20", Name))), silent = T)
+  
+  for (n in 1:2){
+  
+    mutseq <- c("mut20","mut25")[n]
+    try(pdict_obj <- get(mutseq), silent=T)
+    
+    if(exists("pdict_obj")){ #some groups do not have both types of data.
+      samps <- as.list(pull(polyA_RNAseq_files, Sample))
+      # This took max of 1hr 10min for 508 samples - in two batches for CBFB-MYH11.
+      sjob <- rslurm::slurm_map(samps,
+                      examine_breakpoint_evidence,
+                      breakpoint = breakpoint,
+                      file_manifest = polyA_RNAseq_files,
+                      Seqlens = seqlens,
+                      fusion_theoretical_pdict = pdict_obj,
+                      cicero.contig = cicero.contig_input,
+                      TA.contigs = TA.contigs_input,
+                      slurm_options=sopt,
+                      jobname=paste0(group,"_polyA_RNAseq_",mutseq),
+                      submit = F)
+      rm(pdict_obj)
+      try(rm(mutseq), silent=T)
+
+    }
+  }
+}
+```
+
+### RBD
+
+```{r eval=FALSE}
+setwd(outdir)
+file_manifest <- RBD_RNAseq_files %>% 
+  filter(grepl("AML|NBM|CD34_PB", Group), 
+         grepl("diagnostic|NBM|CD34_NBM", Time_point))
+
+
+for ( i in 1:length(Groups)){ 
+  # The fusion group to investigate
+  group <- Groups[i]
+  breakpoint <- common_breakpoints[group,"breakpoint"]
+  print(group)
+  print(breakpoint)
+  
+  #Filter the sequence data for the fusion to investigate
+  fusion_theoretical_input <- filter(theoretical_data.collapsed, Fusion.Category == group)
+  cicero.contig_input <- filter(cicero.contig, Fusion.Category ==  group)
+  TA.contigs_input <- filter(TA.contigs, Fusion.Category == group)
+  
+  # I forgot seqs need to be the same width for pdict objects. hopefully will change soon.
+  try(
+    mut20 <- create_custom_pdict(theoretical_seqs_df = filter(fusion_theoretical_input,
+                                                              grepl("Mutseq20", Name))), silent=T)
+  try(
+    mut25 <- create_custom_pdict(theoretical_seqs_df = filter(fusion_theoretical_input,
+                                                            !grepl("Mutseq20", Name))), silent = T)
+  
+  for (n in 1:2){
+  
+    mutseq <- c("mut20","mut25")[n]
+    try(pdict_obj <- get(mutseq), silent=T)
+    
+    if(exists("pdict_obj")){ #some groups do not have both types of data.
+      samps <- as.list(pull(file_manifest, Sample))
+      # This took max of 1hr 10min for 508 samples - in two batches for CBFB-MYH11.
+      jobname <- paste0(group,"_RBD_RNAseq_",mutseq)
+      message(jobname)
+      sjob <- rslurm::slurm_map(samps,
+                      examine_breakpoint_evidence,
+                      breakpoint = breakpoint,
+                      file_manifest = file_manifest,
+                      Seqlens = seqlens,
+                      fusion_theoretical_pdict = pdict_obj,
+                      cicero.contig = cicero.contig_input,
+                      TA.contigs = TA.contigs_input,
+                      slurm_options=sopt,
+                      jobname=jobname,
+                      submit = F)
+      rm(pdict_obj)
+      try(rm(mutseq), silent=T)
+
+    }
+  }
+}
+```
+
+
+### St.Jude
+
+```{r eval=FALSE}
+setwd(outdir)
+
+for ( i in 1:length(Groups)){ 
+  # The fusion group to investigate
+  group <- Groups[i]
+  breakpoint <- common_breakpoints[group,"breakpoint_ctat"]
+  print(group)
+  print(breakpoint)
+  
+  #Filter the sequence data for the fusion to investigate
+  fusion_theoretical_input <- filter(theoretical_data.collapsed, Fusion.Category == group)
+  cicero.contig_input <- filter(cicero.contig, Fusion.Category ==  group)
+  TA.contigs_input <- filter(TA.contigs, Fusion.Category == group)
+
+  # I forgot seqs need to be the same width for pdict objects. hopefully will change soon.
+  try(
+    mut20 <- create_custom_pdict(theoretical_seqs_df = filter(fusion_theoretical_input,
+                                                              grepl("Mutseq20", Name))), silent=T)
+  try(
+    mut25 <- create_custom_pdict(theoretical_seqs_df = filter(fusion_theoretical_input,
+                                                            !grepl("Mutseq20", Name))), silent = T)
+
+  for (n in 1:2){ 
+
+    mutseq <- c("mut20","mut25")[n]
+    try(pdict_obj <- get(mutseq), silent=T)
+
+    if(exists("pdict_obj")){ #some groups do not have both types of data.
+      samps <- as.list(pull(SJ_RNAseq_files, Sample))
+      sjob <- rslurm::slurm_map(samps,
+                      examine_breakpoint_evidence,
+                      breakpoint = breakpoint,
+                      file_manifest = SJ_RNAseq_files,
+                      Seqlens = seqlens.ctat,
+                      fusion_theoretical_pdict = pdict_obj,
+                      cicero.contig = cicero.contig_input,
+                      TA.contigs = TA.contigs_input,
+                      slurm_options=sopt,
+                      jobname=paste0(group,"_SJ_RNAseq_",mutseq),
+                      submit = F)
+      rm(pdict_obj)
+      try(rm(mutseq), silent=T)
+
+    }
+  }
+}
+```
+
+
+
+## Furrr (Future map)
+
+```{r eval=FALSE}
+library(furrr)
+future::plan("multisession") 
+# future::plan("sequential") 
+plan()
+availableCores()
+```
+
+```{r eval=FALSE}
+setwd(outdir)
+for ( i in 1:length(Groups) ){ 
+  # The fusion group to investigate
+  group <- Groups[i]
+  breakpoint <- common_breakpoints[group,"breakpoint"]
+  print(group)
+  print(breakpoint)
+  
+  #Filter the sequence data for the fusion to investigate
+  fusion_theoretical_input <- filter(theoretical_data.collapsed, Fusion.Category == group)
+  cicero.contig_input <- filter(cicero.contig, Fusion.Category ==  group)
+  TA.contigs_input <- filter(TA.contigs, Fusion.Category == group)
+  
+  # I forgot seqs need to be the same width for pdict objects. hopefully will change soon.
+  try(
+    mut20 <- create_custom_pdict(theoretical_seqs_df = filter(fusion_theoretical_input,
+                                                              grepl("Mutseq20", Name))), silent=T)
+  try(
+    mut25 <- create_custom_pdict(theoretical_seqs_df = filter(fusion_theoretical_input,
+                                                            !grepl("Mutseq20", Name))), silent = T)
+  
+  for (n in 1:2){
+  
+    mutseq <- c("mut20","mut25")[n]
+    try(pdict_obj <- get(mutseq), silent=T)
+    fname <- paste0("Rdata/TARGET_AML_",group,"_polyA_RNAseq_",mutseq,".RDS")
+    
+    if(exists("pdict_obj")){ #some groups do not have both types of data.
+      samps <- as.list(pull(polyA_RNAseq_files, Sample))
+      tictoc::tic()
+      polyA_evidence <- furrr::future_map_dfr(samps,
+                            examine_breakpoint_evidence, 
+                            breakpoint = breakpoint,
+                            file_manifest = polyA_RNAseq_files,
+                            Seqlens = seqlens, 
+                            fusion_theoretical_pdict = pdict_obj, 
+                            cicero.contig = cicero.contig_input, 
+                            TA.contigs = TA.contigs_input,
+                            .progress=TRUE)
+      tictoc::toc()
+      
+      #Save output to RDS data
+      saveRDS(polyA_evidence, fname)
+      
+      #remove large objects from memory
+      rm(pdict_obj)
+      rm(polyA_evidence) 
+      gc()
+    }
+  }
+}
+```
+
+
+
+# Session Information
+
+```{r}
+sessionInfo()
+```
+
+
+

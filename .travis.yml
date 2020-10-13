@@ -13,13 +13,13 @@
 
 language: R
 
+r: bioc-release
+
 cache:
   directories:
     - $TRAVIS_BUILD_DIR/packrat/src
     - $TRAVIS_BUILD_DIR/packrat/lib
   packages: true
-
-r: bioc-release
 
 bioc_packages:
   - Biostrings
@@ -28,4 +28,10 @@ bioc_packages:
   - GenomicRanges
   - S4Vectors
 
+notifications:
+  recipients:
+    - jennyl.smith12@gmail.com
+  email:
+    on_success: change
+    on_failure: change
 

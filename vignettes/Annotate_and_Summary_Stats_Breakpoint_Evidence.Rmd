@@ -1,0 +1,206 @@
+---
+title: "Annotate and Summary Stats of Breakpoint Evidence"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Annotate and Summary Stats of Breakpoint Evidence}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+#Set-up
+
+```{r setup}
+knitr::opts_knit$set(
+  root.dir = file.path(PROJHOME,"2020.09.15_RNAseq_Fusion_Breakpoints"))
+
+library(fusBreakpoint)
+library(magrittr)
+library(dplyr)
+library(tibble)
+library(stringr)
+```
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  tidy.opts=list(width.cutoff=50),
+  tidy=TRUE, 
+  fig.align='center',
+  fig.width = 10, 
+  fig.height = 10
+)
+```
+
+#Define Functions
+
+
+
+#ClinData
+
+```{r}
+merged <- read.csv(file.path(CDE,"Merged/TARGET_AML_0531_1031_merged_CDEs_9.18.20.csv"))
+
+merged <- merged %>% 
+  filter(USI != "Unknown") %>% 
+  as.data.frame() %>%
+  set_rownames(.$USI)
+
+dim(merged)
+```
+
+```{r}
+IDmap <- read.csv("References/St.Jude_TARGET_CICERO_Sample_IDmap.csv")
+
+head(IDmap)
+```
+ 
+ 
+#Read in File Manifests 
+
+```{r}
+polyA_RNAseq_files <- read.csv("BAM_Manifests/TARGET_AML_polyA_RNAseq_Bam_Manifest_10.02.20.csv", 
+                               row.names = 1) 
+
+
+dim(polyA_RNAseq_files)
+table(duplicated(polyA_RNAseq_files$Sample)) #FALSE
+```
+
+```{r}
+RBD_RNAseq_files <- read.csv("BAM_Manifests/TARGET_AML_Ribodepleted_RNAseq_Bam_Manifest_10.02.20.csv",row.names = 1)
+
+dim(RBD_RNAseq_files)
+table(duplicated(RBD_RNAseq_files$Sample)) #FALSE
+```
+
+```{r}
+SJ_RNAseq_files <- read.csv("BAM_Manifests/St.Jude_AML_ALL_RNAseq_Bam_Manifest_10.09.20.csv")
+
+dim(SJ_RNAseq_files)
+table(duplicated(SJ_RNAseq_files$Sample)) #FALSE
+```
+
+
+#Define the Results files 
+
+```{r}
+outdir <- file.path(SCRATCH,'jlsmith3/Fusion_Breakpoints')
+outdir
+```
+
+```{r}
+results_files <- dir(file.path(outdir), 
+                 pattern = "results_[01].RDS",
+                 recursive = T, 
+                 full.names = T)
+
+
+Names <- str_split_fixed(results_files, "\\/", n=9)[,8] 
+Names <- str_split_fixed(Names,"_", n=4)[,3]
+names(results_files) <- Names
+
+length(results_files) # 62
+head(results_files)
+table(names(results_files))
+```
+
+
+
+
+Skip for now:
+_rslurm_CBFBMYH11_SJ_RNAseq_mut20
+_rslurm_NSD1NUP98_RBD_RNAseq_mut25 
+
+
+```{r}
+results_files <- grep("_rslurm_NSD1NUP98_RBD_RNAseq_mut25|_rslurm_CBFBMYH11_SJ_RNAseq_mut20", results_files, 
+     value=T, invert = T)
+
+table(names(results_files))
+```
+
+
+#TARGET AML 
+
+```{r}
+TARGET_results <- grep("polyA_|RBD_", results_files, value = T)
+# TARGET_results
+table(names(TARGET_results))
+```
+
+```{r}
+for (i in seq(2,length(TARGET_results), by=2)[1]){
+
+  #select the results files  (in two parts)
+  rds0 <- results_files[i-1]
+  rds1 <- results_files[i]
+   
+  #define output filename and destination
+  fname <- str_split_fixed(rds0,"\\/", n=9)[,8] %>% 
+    gsub("_rslurm_", "", .) %>% 
+    paste0("TARGET_AML_",., "_breakpoint_evidence.csv")
+  
+  destination <- paste0(getwd(), "/", str_split_fixed(names(rds1), "_", n=3)[,1])
+  suppressWarnings(dir.create(destination,recursive = T))
+  
+  #read in the results
+  res <- sapply(c(rds0, rds1), readRDS) %>% 
+    bind_rows() 
+  
+  #Mfusion annotations
+  if(grepl("polyA", rds0)){
+    res <- res %>%
+        left_join(., select(merged, -filename, -filepath), 
+                by="Sample") %>% 
+        left_join(., select(merged, USI, matches("OS\\.[tei]|EFS\\.[tei]|Event",ignore.case=FALSE))) %>% 
+        select(Sample,USI,Protocol,Theoretical_Exon_Junctions,
+             Num_Junction_Breakpoint_Reads, 
+             Num_RNAseq_Reads_Searched, 
+             Primary.Fusion,Additional.Fusions.CNV,  Lib_Prep:AML_Subtype, everything(),
+             -Reg., -Final_Patient_ID, -PATIENT_ID_Original)
+  }else{
+        res <- res %>%
+        left_join(., select(RBD_RNAseq_files, -filename, -filepath), 
+                by="Sample") %>% 
+        select(Sample,USI,Protocol,Theoretical_Exon_Junctions,
+             Num_Junction_Breakpoint_Reads, 
+             Num_RNAseq_Reads_Searched, 
+             Primary.Fusion,Additional.Fusions.CNV,  Lib_Prep:AML_Subtype, everything(),
+             -Reg., -Final_Patient_ID, -PATIENT_ID_Original)
+    
+  }
+  
+  # write.csv(res,paste(destination, fname, sep="/"), row.names = FALSE)
+}
+```
+
+```{r}
+dim(res)
+head(res)
+# table(duplicated(res$Sample))
+filter(res, Num_Junction_Breakpoint_Reads > 0)
+```
+
+##CBFB-MYH11
+
+
+
+# ST.Jude Data
+
+```{r}
+SJ_results <- grep("_SJ_", results_files, value = T)
+# SJresults
+table(names(SJ_results))
+```
+
+
+
+#Session Information
+
+```{r}
+sessionInfo()
+```
+
+
+

@@ -175,6 +175,7 @@ create_custom_pdict <- function(theoretical_seqs_df){
       dplyr::slice(slices[[i]]) %>%
       dplyr::pull(Sequence, name=Name) %>%
       Biostrings::DNAStringSet()
+
     #Add reverse compliment to search
     revComp <- Biostrings::reverseComplement(seqExons)
     names(revComp) <- paste0("revComp",names(seqExons))
