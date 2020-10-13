@@ -32,9 +32,13 @@ knitr::opts_chunk$set(
 )
 ```
 
+
 #Define Functions
 
-
+```{r}
+#Needs to be build into the package
+source(file.path(SCRIPTS,"RNAseq_Analysis/fusBreakpoint/R/survplot_functions.R.bak"))
+```
 
 #ClinData
 
@@ -95,7 +99,6 @@ results_files <- dir(file.path(outdir),
                  recursive = T, 
                  full.names = T)
 
-
 Names <- str_split_fixed(results_files, "\\/", n=9)[,8] 
 Names <- str_split_fixed(Names,"_", n=4)[,3]
 names(results_files) <- Names
@@ -104,8 +107,6 @@ length(results_files) # 62
 head(results_files)
 table(names(results_files))
 ```
-
-
 
 
 Skip for now:
@@ -151,9 +152,11 @@ for (i in seq(2,length(TARGET_results), by=2)[1]){
   #Mfusion annotations
   if(grepl("polyA", rds0)){
     res <- res %>%
-        left_join(., select(merged, -filename, -filepath), 
+        left_join(., select(polyA_RNAseq_files, -filename, -filepath), 
                 by="Sample") %>% 
-        left_join(., select(merged, USI, matches("OS\\.[tei]|EFS\\.[tei]|Event",ignore.case=FALSE))) %>% 
+        left_join(., select(merged, USI, 
+                            matches("OS\\.[tei]|EFS\\.[tei]|Event",ignore.case=FALSE)),
+                  by="USI") %>% 
         select(Sample,USI,Protocol,Theoretical_Exon_Junctions,
              Num_Junction_Breakpoint_Reads, 
              Num_RNAseq_Reads_Searched, 
@@ -163,6 +166,9 @@ for (i in seq(2,length(TARGET_results), by=2)[1]){
         res <- res %>%
         left_join(., select(RBD_RNAseq_files, -filename, -filepath), 
                 by="Sample") %>% 
+        left_join(., select(merged, USI, 
+                            matches("OS\\.[tei]|EFS\\.[tei]|Event",ignore.case=FALSE)),
+                  by="USI") %>% 
         select(Sample,USI,Protocol,Theoretical_Exon_Junctions,
              Num_Junction_Breakpoint_Reads, 
              Num_RNAseq_Reads_Searched, 
