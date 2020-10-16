@@ -36,24 +36,55 @@ knitr::opts_chunk$set(
 # Define Functions
 
 ```{r}
-#Function to great a fusion category by alphabetical order, for easier grouping variables when dealing with the reciprocal fusions
-fusion_category <- function(geneA,geneB){
-  fusion <- c(geneA,geneB)[order(c(geneA,geneB))]
-  fusion <- paste(fusion, collapse="-")
-  return(fusion)
+#Function to wrap up all the RSlurm submissions for the different fusion groups and fusion sequences. 
+submit_slurm_per_fusion <- function(fusion.category, file_manifest, chromLengths, cohort=""){
+  # The fusion group to investigate
+  group <- fusion.category
+  breakpoint <- common_breakpoints[group,"breakpoint"]
+  print(group)
+  print(breakpoint)
+  
+  #Filter the sequence data for the fusion to investigate
+  fusion_theoretical_input <- filter(theoretical_data.collapsed, Fusion.Category == group)
+  cicero.contig_input <- filter(cicero.contig, Fusion.Category ==  group)
+  TA.contigs_input <- filter(TA.contigs, Fusion.Category == group)
+  
+  # I forgot seqs need to be the same width for pdict objects. hopefully will change soon.
+  try(
+    mut20 <- create_custom_pdict(theoretical_seqs_df = filter(fusion_theoretical_input,
+                                                              grepl("Mutseq20", Name))), silent=T)
+  try(
+    mut25 <- create_custom_pdict(theoretical_seqs_df = filter(fusion_theoretical_input,
+                                                            !grepl("Mutseq20", Name))), silent = T)
+  
+  for (n in 1:2){
+  
+    mutseq <- c("mut20","mut25")[n]
+    try(pdict_obj <- get(mutseq), silent=T)
+    
+    if(exists("pdict_obj")){ #some groups do not have both types of data.
+      samps <- as.list(pull(file_manifest, Sample))
+      jobname <- paste(gsub("-","_",group),
+                       cohort,mutseq, sep="_")
+      message(paste0("submitting: ",jobname))
+      
+      sjob <- rslurm::slurm_map(samps,
+                      examine_breakpoint_evidence,
+                      breakpoint = breakpoint,
+                      file_manifest = file_manifest,
+                      Seqlens = chromLengths,
+                      fusion_theoretical_pdict = pdict_obj,
+                      cicero.contig = cicero.contig_input,
+                      TA.contigs = TA.contigs_input,
+                      slurm_options=sopt,
+                      jobname=jobname,
+                      submit = T)
+      rm(pdict_obj)
+    }
+    rm(mutseq)
+  }
 }
 ```
-
-```{r}
-#Function to sort breakpoints for easier matching of identical breakpoints across different datasets
-order_breakpoints <- function(brkpt){
-  split <- str_split(brkpt, pattern = "\\|")[[1]] 
-  ord <- split[order(split)]
-  ord <- paste(ord,collapse = "|")
-  return(ord)
-}
-```
-
 
 # ClinData
 
@@ -187,109 +218,27 @@ sopt <- list(nodes='1', 'cpus-per-task'='2',
 
 ```{r eval=FALSE}
 setwd(outdir)
-for ( i in 1:length(Groups) ){ 
-  # The fusion group to investigate
-  group <- Groups[i]
-  breakpoint <- common_breakpoints[group,"breakpoint"]
-  print(group)
-  print(breakpoint)
-  
-  #Filter the sequence data for the fusion to investigate
-  fusion_theoretical_input <- filter(theoretical_data.collapsed, Fusion.Category == group)
-  cicero.contig_input <- filter(cicero.contig, Fusion.Category ==  group)
-  TA.contigs_input <- filter(TA.contigs, Fusion.Category == group)
-  
-  # I forgot seqs need to be the same width for pdict objects. hopefully will change soon.
-  try(
-    mut20 <- create_custom_pdict(theoretical_seqs_df = filter(fusion_theoretical_input,
-                                                              grepl("Mutseq20", Name))), silent=T)
-  try(
-    mut25 <- create_custom_pdict(theoretical_seqs_df = filter(fusion_theoretical_input,
-                                                            !grepl("Mutseq20", Name))), silent = T)
-  
-  for (n in 1:2){
-  
-    mutseq <- c("mut20","mut25")[n]
-    try(pdict_obj <- get(mutseq), silent=T)
-    
-    if(exists("pdict_obj")){ #some groups do not have both types of data.
-      samps <- as.list(pull(polyA_RNAseq_files, Sample))
-      # This took max of 1hr 10min for 508 samples - in two batches for CBFB-MYH11.
-      sjob <- rslurm::slurm_map(samps,
-                      examine_breakpoint_evidence,
-                      breakpoint = breakpoint,
-                      file_manifest = polyA_RNAseq_files,
-                      Seqlens = seqlens,
-                      fusion_theoretical_pdict = pdict_obj,
-                      cicero.contig = cicero.contig_input,
-                      TA.contigs = TA.contigs_input,
-                      slurm_options=sopt,
-                      jobname=paste0(group,"_polyA_RNAseq_",mutseq),
-                      submit = F)
-      rm(pdict_obj)
-      try(rm(mutseq), silent=T)
-
-    }
-  }
-}
+jobs1 <- lapply(Groups, 
+       submit_slurm_per_fusion, 
+       file_manifest=polyA_RNAseq_files,
+       chromLengths=seqlens,
+       cohort="polyA_RNAseq")
 ```
 
 ### RBD
 
 ```{r eval=FALSE}
 setwd(outdir)
-file_manifest <- RBD_RNAseq_files %>% 
+RBD_RNAseq_files <- RBD_RNAseq_files %>% 
   filter(grepl("AML|NBM|CD34_PB", Group), 
          grepl("diagnostic|NBM|CD34_NBM", Time_point))
 
+jobs2 <- lapply(Groups, 
+       submit_slurm_per_fusion, 
+       file_manifest=RBD_RNAseq_files,
+       chromLengths=seqlens,
+       cohort="RBD_RNAseq")
 
-for ( i in 1:length(Groups)){ 
-  # The fusion group to investigate
-  group <- Groups[i]
-  breakpoint <- common_breakpoints[group,"breakpoint"]
-  print(group)
-  print(breakpoint)
-  
-  #Filter the sequence data for the fusion to investigate
-  fusion_theoretical_input <- filter(theoretical_data.collapsed, Fusion.Category == group)
-  cicero.contig_input <- filter(cicero.contig, Fusion.Category ==  group)
-  TA.contigs_input <- filter(TA.contigs, Fusion.Category == group)
-  
-  # I forgot seqs need to be the same width for pdict objects. hopefully will change soon.
-  try(
-    mut20 <- create_custom_pdict(theoretical_seqs_df = filter(fusion_theoretical_input,
-                                                              grepl("Mutseq20", Name))), silent=T)
-  try(
-    mut25 <- create_custom_pdict(theoretical_seqs_df = filter(fusion_theoretical_input,
-                                                            !grepl("Mutseq20", Name))), silent = T)
-  
-  for (n in 1:2){
-  
-    mutseq <- c("mut20","mut25")[n]
-    try(pdict_obj <- get(mutseq), silent=T)
-    
-    if(exists("pdict_obj")){ #some groups do not have both types of data.
-      samps <- as.list(pull(file_manifest, Sample))
-      # This took max of 1hr 10min for 508 samples - in two batches for CBFB-MYH11.
-      jobname <- paste0(group,"_RBD_RNAseq_",mutseq)
-      message(jobname)
-      sjob <- rslurm::slurm_map(samps,
-                      examine_breakpoint_evidence,
-                      breakpoint = breakpoint,
-                      file_manifest = file_manifest,
-                      Seqlens = seqlens,
-                      fusion_theoretical_pdict = pdict_obj,
-                      cicero.contig = cicero.contig_input,
-                      TA.contigs = TA.contigs_input,
-                      slurm_options=sopt,
-                      jobname=jobname,
-                      submit = F)
-      rm(pdict_obj)
-      try(rm(mutseq), silent=T)
-
-    }
-  }
-}
 ```
 
 
@@ -297,51 +246,11 @@ for ( i in 1:length(Groups)){
 
 ```{r eval=FALSE}
 setwd(outdir)
-
-for ( i in 1:length(Groups)){ 
-  # The fusion group to investigate
-  group <- Groups[i]
-  breakpoint <- common_breakpoints[group,"breakpoint_ctat"]
-  print(group)
-  print(breakpoint)
-  
-  #Filter the sequence data for the fusion to investigate
-  fusion_theoretical_input <- filter(theoretical_data.collapsed, Fusion.Category == group)
-  cicero.contig_input <- filter(cicero.contig, Fusion.Category ==  group)
-  TA.contigs_input <- filter(TA.contigs, Fusion.Category == group)
-
-  # I forgot seqs need to be the same width for pdict objects. hopefully will change soon.
-  try(
-    mut20 <- create_custom_pdict(theoretical_seqs_df = filter(fusion_theoretical_input,
-                                                              grepl("Mutseq20", Name))), silent=T)
-  try(
-    mut25 <- create_custom_pdict(theoretical_seqs_df = filter(fusion_theoretical_input,
-                                                            !grepl("Mutseq20", Name))), silent = T)
-
-  for (n in 1:2){ 
-
-    mutseq <- c("mut20","mut25")[n]
-    try(pdict_obj <- get(mutseq), silent=T)
-
-    if(exists("pdict_obj")){ #some groups do not have both types of data.
-      samps <- as.list(pull(SJ_RNAseq_files, Sample))
-      sjob <- rslurm::slurm_map(samps,
-                      examine_breakpoint_evidence,
-                      breakpoint = breakpoint,
-                      file_manifest = SJ_RNAseq_files,
-                      Seqlens = seqlens.ctat,
-                      fusion_theoretical_pdict = pdict_obj,
-                      cicero.contig = cicero.contig_input,
-                      TA.contigs = TA.contigs_input,
-                      slurm_options=sopt,
-                      jobname=paste0(group,"_SJ_RNAseq_",mutseq),
-                      submit = F)
-      rm(pdict_obj)
-      try(rm(mutseq), silent=T)
-
-    }
-  }
-}
+jobs3 <- lapply(Groups, 
+       submit_slurm_per_fusion, 
+       file_manifest=SJ_RNAseq_files,
+       chromLengths=seqlens.ctat,
+       cohort="SJ_RNAseq")
 ```
 
 

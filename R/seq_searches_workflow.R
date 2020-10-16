@@ -289,7 +289,7 @@ match_reads_contigs <- function(Sample_ID, pdict_obj, RNAseqReads, contigSeqs=NU
       group_by(Theoretical_Exon_Junctions, .add=TRUE) %>%
       filter(!duplicated(Theoretical_Exon_Junctions)) %>%
       ungroup() %>%
-      spread(Contig.Name,Contig.Match) %>%
+      tidyr::spread(Contig.Name,Contig.Match) %>%
       rename_all(~gsub("contig.", "Matching_Contig_for_Exon_Junctions_", .))
 
     #Final Results table

@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+
+
+<title>Multiple_Samples_with_RSlurm</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+<script>// Hide empty <a> tag within highlighted CodeBlock for screen reader accessibility (see https://github.com/jgm/pandoc/issues/6352#issuecomment-626106786) -->
+// v0.0.1
+// Written by JooYoung Seo (jooyoung@psu.edu) and Atsushi Yasumoto on June 1st, 2020.
+
+document.addEventListener('DOMContentLoaded', function() {
+  const codeList = document.getElementsByClassName("sourceCode");
+  for (var i = 0; i < codeList.length; i++) {
+    var linkList = codeList[i].getElementsByTagName('a');
+    for (var j = 0; j < linkList.length; j++) {
+      if (linkList[j].innerHTML === "") {
+        linkList[j].setAttribute('aria-hidden', 'true');
+      }
+    }
+  }
+});
+</script>
+
+
+<style type="text/css">code{white-space: pre;}</style>
+<style type="text/css" data-origin="pandoc">
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+    color: #aaaaaa;
+  }
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+code span.at { color: #7d9029; } /* Attribute */
+code span.bn { color: #40a070; } /* BaseN */
+code span.bu { } /* BuiltIn */
+code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+code span.ch { color: #4070a0; } /* Char */
+code span.cn { color: #880000; } /* Constant */
+code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+code span.dt { color: #902000; } /* DataType */
+code span.dv { color: #40a070; } /* DecVal */
+code span.er { color: #ff0000; font-weight: bold; } /* Error */
+code span.ex { } /* Extension */
+code span.fl { color: #40a070; } /* Float */
+code span.fu { color: #06287e; } /* Function */
+code span.im { } /* Import */
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+code span.op { color: #666666; } /* Operator */
+code span.ot { color: #007020; } /* Other */
+code span.pp { color: #bc7a00; } /* Preprocessor */
+code span.sc { color: #4070a0; } /* SpecialChar */
+code span.ss { color: #bb6688; } /* SpecialString */
+code span.st { color: #4070a0; } /* String */
+code span.va { color: #19177c; } /* Variable */
+code span.vs { color: #4070a0; } /* VerbatimString */
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    for (var j = 0; j < rules.length; j++) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") continue;
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') continue;
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">Multiple_Samples_with_RSlurm</h1>
+
+
+
+<div id="set-up" class="section level1">
+<h1>Set-up</h1>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1"></a>knitr<span class="op">::</span>opts_knit<span class="op">$</span><span class="kw">set</span>(</span>
+<span id="cb1-2"><a href="#cb1-2"></a>  <span class="dt">root.dir =</span> <span class="kw">file.path</span>(PROJHOME,<span class="st">&quot;2020.09.15_RNAseq_Fusion_Breakpoints&quot;</span>))</span>
+<span id="cb1-3"><a href="#cb1-3"></a></span>
+<span id="cb1-4"><a href="#cb1-4"></a><span class="kw">library</span>(fusBreakpoint)</span>
+<span id="cb1-5"><a href="#cb1-5"></a><span class="kw">library</span>(magrittr)</span>
+<span id="cb1-6"><a href="#cb1-6"></a><span class="kw">library</span>(dplyr)</span>
+<span id="cb1-7"><a href="#cb1-7"></a><span class="kw">library</span>(tibble)</span>
+<span id="cb1-8"><a href="#cb1-8"></a><span class="kw">library</span>(stringr)</span></code></pre></div>
+</div>
+<div id="define-functions" class="section level1">
+<h1>Define Functions</h1>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1"></a><span class="co"># Function to wrap up all the RSlurm submissions</span></span>
+<span id="cb2-2"><a href="#cb2-2"></a><span class="co"># for the different fusion groups and fusion</span></span>
+<span id="cb2-3"><a href="#cb2-3"></a><span class="co"># sequences.</span></span>
+<span id="cb2-4"><a href="#cb2-4"></a>submit_slurm_per_fusion &lt;-<span class="st"> </span><span class="cf">function</span>(fusion.category, </span>
+<span id="cb2-5"><a href="#cb2-5"></a>    file_manifest, chromLengths, <span class="dt">cohort =</span> <span class="st">&quot;&quot;</span>) {</span>
+<span id="cb2-6"><a href="#cb2-6"></a>    <span class="co"># The fusion group to investigate</span></span>
+<span id="cb2-7"><a href="#cb2-7"></a>    group &lt;-<span class="st"> </span>fusion.category</span>
+<span id="cb2-8"><a href="#cb2-8"></a>    breakpoint &lt;-<span class="st"> </span>common_breakpoints[group, <span class="st">&quot;breakpoint&quot;</span>]</span>
+<span id="cb2-9"><a href="#cb2-9"></a>    <span class="kw">print</span>(group)</span>
+<span id="cb2-10"><a href="#cb2-10"></a>    <span class="kw">print</span>(breakpoint)</span>
+<span id="cb2-11"><a href="#cb2-11"></a>    </span>
+<span id="cb2-12"><a href="#cb2-12"></a>    <span class="co"># Filter the sequence data for the fusion to</span></span>
+<span id="cb2-13"><a href="#cb2-13"></a>    <span class="co"># investigate</span></span>
+<span id="cb2-14"><a href="#cb2-14"></a>    fusion_theoretical_input &lt;-<span class="st"> </span><span class="kw">filter</span>(theoretical_data.collapsed, </span>
+<span id="cb2-15"><a href="#cb2-15"></a>        Fusion.Category <span class="op">==</span><span class="st"> </span>group)</span>
+<span id="cb2-16"><a href="#cb2-16"></a>    cicero.contig_input &lt;-<span class="st"> </span><span class="kw">filter</span>(cicero.contig, Fusion.Category <span class="op">==</span><span class="st"> </span></span>
+<span id="cb2-17"><a href="#cb2-17"></a><span class="st">        </span>group)</span>
+<span id="cb2-18"><a href="#cb2-18"></a>    TA.contigs_input &lt;-<span class="st"> </span><span class="kw">filter</span>(TA.contigs, Fusion.Category <span class="op">==</span><span class="st"> </span></span>
+<span id="cb2-19"><a href="#cb2-19"></a><span class="st">        </span>group)</span>
+<span id="cb2-20"><a href="#cb2-20"></a>    </span>
+<span id="cb2-21"><a href="#cb2-21"></a>    <span class="co"># I forgot seqs need to be the same width for pdict</span></span>
+<span id="cb2-22"><a href="#cb2-22"></a>    <span class="co"># objects. hopefully will change soon.</span></span>
+<span id="cb2-23"><a href="#cb2-23"></a>    <span class="kw">try</span>(mut20 &lt;-<span class="st"> </span><span class="kw">create_custom_pdict</span>(<span class="dt">theoretical_seqs_df =</span> <span class="kw">filter</span>(fusion_theoretical_input, </span>
+<span id="cb2-24"><a href="#cb2-24"></a>        <span class="kw">grepl</span>(<span class="st">&quot;Mutseq20&quot;</span>, Name))), <span class="dt">silent =</span> T)</span>
+<span id="cb2-25"><a href="#cb2-25"></a>    <span class="kw">try</span>(mut25 &lt;-<span class="st"> </span><span class="kw">create_custom_pdict</span>(<span class="dt">theoretical_seqs_df =</span> <span class="kw">filter</span>(fusion_theoretical_input, </span>
+<span id="cb2-26"><a href="#cb2-26"></a>        <span class="op">!</span><span class="kw">grepl</span>(<span class="st">&quot;Mutseq20&quot;</span>, Name))), <span class="dt">silent =</span> T)</span>
+<span id="cb2-27"><a href="#cb2-27"></a>    </span>
+<span id="cb2-28"><a href="#cb2-28"></a>    <span class="cf">for</span> (n <span class="cf">in</span> <span class="dv">1</span><span class="op">:</span><span class="dv">2</span>) {</span>
+<span id="cb2-29"><a href="#cb2-29"></a>        </span>
+<span id="cb2-30"><a href="#cb2-30"></a>        mutseq &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;mut20&quot;</span>, <span class="st">&quot;mut25&quot;</span>)[n]</span>
+<span id="cb2-31"><a href="#cb2-31"></a>        <span class="kw">try</span>(pdict_obj &lt;-<span class="st"> </span><span class="kw">get</span>(mutseq), <span class="dt">silent =</span> T)</span>
+<span id="cb2-32"><a href="#cb2-32"></a>        </span>
+<span id="cb2-33"><a href="#cb2-33"></a>        <span class="cf">if</span> (<span class="kw">exists</span>(<span class="st">&quot;pdict_obj&quot;</span>)) {</span>
+<span id="cb2-34"><a href="#cb2-34"></a>            <span class="co"># some groups do not have both types of data.</span></span>
+<span id="cb2-35"><a href="#cb2-35"></a>            samps &lt;-<span class="st"> </span><span class="kw">as.list</span>(<span class="kw">pull</span>(file_manifest, Sample))</span>
+<span id="cb2-36"><a href="#cb2-36"></a>            jobname &lt;-<span class="st"> </span><span class="kw">paste</span>(<span class="kw">gsub</span>(<span class="st">&quot;-&quot;</span>, <span class="st">&quot;_&quot;</span>, group), </span>
+<span id="cb2-37"><a href="#cb2-37"></a>                cohort, mutseq, <span class="dt">sep =</span> <span class="st">&quot;_&quot;</span>)</span>
+<span id="cb2-38"><a href="#cb2-38"></a>            <span class="kw">message</span>(<span class="kw">paste0</span>(<span class="st">&quot;submitting: &quot;</span>, jobname))</span>
+<span id="cb2-39"><a href="#cb2-39"></a>            </span>
+<span id="cb2-40"><a href="#cb2-40"></a>            sjob &lt;-<span class="st"> </span>rslurm<span class="op">::</span><span class="kw">slurm_map</span>(samps, examine_breakpoint_evidence, </span>
+<span id="cb2-41"><a href="#cb2-41"></a>                <span class="dt">breakpoint =</span> breakpoint, <span class="dt">file_manifest =</span> file_manifest, </span>
+<span id="cb2-42"><a href="#cb2-42"></a>                <span class="dt">Seqlens =</span> chromLengths, <span class="dt">fusion_theoretical_pdict =</span> pdict_obj, </span>
+<span id="cb2-43"><a href="#cb2-43"></a>                <span class="dt">cicero.contig =</span> cicero.contig_input, </span>
+<span id="cb2-44"><a href="#cb2-44"></a>                <span class="dt">TA.contigs =</span> TA.contigs_input, <span class="dt">slurm_options =</span> sopt, </span>
+<span id="cb2-45"><a href="#cb2-45"></a>                <span class="dt">jobname =</span> jobname, <span class="dt">submit =</span> T)</span>
+<span id="cb2-46"><a href="#cb2-46"></a>            <span class="kw">rm</span>(pdict_obj)</span>
+<span id="cb2-47"><a href="#cb2-47"></a>        }</span>
+<span id="cb2-48"><a href="#cb2-48"></a>        <span class="kw">rm</span>(mutseq)</span>
+<span id="cb2-49"><a href="#cb2-49"></a>    }</span>
+<span id="cb2-50"><a href="#cb2-50"></a>}</span></code></pre></div>
+</div>
+<div id="clindata" class="section level1">
+<h1>ClinData</h1>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1"></a>merged &lt;-<span class="st"> </span><span class="kw">read.csv</span>(<span class="kw">file.path</span>(CDE, <span class="st">&quot;Merged/TARGET_AML_0531_1031_merged_CDEs_9.18.20.csv&quot;</span>))</span>
+<span id="cb3-2"><a href="#cb3-2"></a></span>
+<span id="cb3-3"><a href="#cb3-3"></a>merged &lt;-<span class="st"> </span>merged <span class="op">%&gt;%</span><span class="st"> </span><span class="kw">filter</span>(USI <span class="op">!=</span><span class="st"> &quot;Unknown&quot;</span>) <span class="op">%&gt;%</span><span class="st"> </span><span class="kw">as.data.frame</span>() <span class="op">%&gt;%</span><span class="st"> </span></span>
+<span id="cb3-4"><a href="#cb3-4"></a><span class="st">    </span><span class="kw">set_rownames</span>(.<span class="op">$</span>USI)</span>
+<span id="cb3-5"><a href="#cb3-5"></a></span>
+<span id="cb3-6"><a href="#cb3-6"></a><span class="kw">dim</span>(merged)</span>
+<span id="cb3-7"><a href="#cb3-7"></a><span class="co">#&gt; [1] 2314  140</span></span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1"></a>IDmap &lt;-<span class="st"> </span><span class="kw">read.csv</span>(<span class="st">&quot;References/St.Jude_TARGET_CICERO_Sample_IDmap.csv&quot;</span>)</span>
+<span id="cb4-2"><a href="#cb4-2"></a></span>
+<span id="cb4-3"><a href="#cb4-3"></a><span class="kw">head</span>(IDmap)</span>
+<span id="cb4-4"><a href="#cb4-4"></a><span class="co">#&gt;                    Patient          SJ.ID Group</span></span>
+<span id="cb4-5"><a href="#cb4-5"></a><span class="co">#&gt; 1 TARGET.20.PAVDBT.04A.01R SJAML064913_R1   AML</span></span>
+<span id="cb4-6"><a href="#cb4-6"></a><span class="co">#&gt; 2 TARGET.20.PAWRSI.09A.01R SJAML065409_D1   AML</span></span>
+<span id="cb4-7"><a href="#cb4-7"></a><span class="co">#&gt; 3 TARGET.20.PAUTVU.09A.01R SJAML064780_D1   AML</span></span>
+<span id="cb4-8"><a href="#cb4-8"></a><span class="co">#&gt; 4 TARGET.20.PAWTRR.09A.01R SJAML065441_D1   AML</span></span>
+<span id="cb4-9"><a href="#cb4-9"></a><span class="co">#&gt; 5 TARGET.20.PAVDNF.09A.01R SJAML064919_D1   AML</span></span>
+<span id="cb4-10"><a href="#cb4-10"></a><span class="co">#&gt; 6 TARGET.20.PAVLPL.09A.01R SJAML065012_D1   AML</span></span></code></pre></div>
+</div>
+<div id="read-in-file-manifests" class="section level1">
+<h1>Read in File Manifests</h1>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1"></a>polyA_RNAseq_files &lt;-<span class="st"> </span><span class="kw">read.csv</span>(<span class="st">&quot;BAM_Manifests/TARGET_AML_polyA_RNAseq_Bam_Manifest_10.02.20.csv&quot;</span>, </span>
+<span id="cb5-2"><a href="#cb5-2"></a>    <span class="dt">row.names =</span> <span class="dv">1</span>)</span>
+<span id="cb5-3"><a href="#cb5-3"></a></span>
+<span id="cb5-4"><a href="#cb5-4"></a></span>
+<span id="cb5-5"><a href="#cb5-5"></a><span class="kw">dim</span>(polyA_RNAseq_files)</span>
+<span id="cb5-6"><a href="#cb5-6"></a><span class="co">#&gt; [1] 508  18</span></span>
+<span id="cb5-7"><a href="#cb5-7"></a><span class="kw">table</span>(<span class="kw">duplicated</span>(polyA_RNAseq_files<span class="op">$</span>Sample))  <span class="co">#FALSE</span></span>
+<span id="cb5-8"><a href="#cb5-8"></a><span class="co">#&gt; </span></span>
+<span id="cb5-9"><a href="#cb5-9"></a><span class="co">#&gt; FALSE </span></span>
+<span id="cb5-10"><a href="#cb5-10"></a><span class="co">#&gt;   508</span></span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1"></a>RBD_RNAseq_files &lt;-<span class="st"> </span><span class="kw">read.csv</span>(<span class="st">&quot;BAM_Manifests/TARGET_AML_Ribodepleted_RNAseq_Bam_Manifest_10.02.20.csv&quot;</span>, </span>
+<span id="cb6-2"><a href="#cb6-2"></a>    <span class="dt">row.names =</span> <span class="dv">1</span>)</span>
+<span id="cb6-3"><a href="#cb6-3"></a></span>
+<span id="cb6-4"><a href="#cb6-4"></a><span class="kw">dim</span>(RBD_RNAseq_files)</span>
+<span id="cb6-5"><a href="#cb6-5"></a><span class="co">#&gt; [1] 2347   17</span></span>
+<span id="cb6-6"><a href="#cb6-6"></a><span class="kw">table</span>(<span class="kw">duplicated</span>(RBD_RNAseq_files<span class="op">$</span>Sample))  <span class="co">#FALSE</span></span>
+<span id="cb6-7"><a href="#cb6-7"></a><span class="co">#&gt; </span></span>
+<span id="cb6-8"><a href="#cb6-8"></a><span class="co">#&gt; FALSE </span></span>
+<span id="cb6-9"><a href="#cb6-9"></a><span class="co">#&gt;  2347</span></span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1"></a>SJ_RNAseq_files &lt;-<span class="st"> </span><span class="kw">read.csv</span>(<span class="st">&quot;BAM_Manifests/St.Jude_AML_ALL_RNAseq_Bam_Manifest_10.09.20.csv&quot;</span>)</span>
+<span id="cb7-2"><a href="#cb7-2"></a></span>
+<span id="cb7-3"><a href="#cb7-3"></a><span class="kw">dim</span>(SJ_RNAseq_files)</span>
+<span id="cb7-4"><a href="#cb7-4"></a><span class="co">#&gt; [1] 491  19</span></span>
+<span id="cb7-5"><a href="#cb7-5"></a><span class="kw">head</span>(SJ_RNAseq_files)</span>
+<span id="cb7-6"><a href="#cb7-6"></a><span class="co">#&gt;         Sample subject_name sample_type sequencing_type file_type description sj_diseases</span></span>
+<span id="cb7-7"><a href="#cb7-7"></a><span class="co">#&gt; 1 SJAMLM7001_D   SJAMLM7001   Diagnosis         RNA-Seq       bam          NA        AMLM</span></span>
+<span id="cb7-8"><a href="#cb7-8"></a><span class="co">#&gt; 2 SJAMLM7003_D   SJAMLM7003   Diagnosis         RNA-Seq       bam          NA        AMLM</span></span>
+<span id="cb7-9"><a href="#cb7-9"></a><span class="co">#&gt; 3 SJAMLM7005_D   SJAMLM7005   Diagnosis         RNA-Seq       bam          NA        AMLM</span></span>
+<span id="cb7-10"><a href="#cb7-10"></a><span class="co">#&gt; 4 SJAMLM7006_D   SJAMLM7006   Diagnosis         RNA-Seq       bam          NA        AMLM</span></span>
+<span id="cb7-11"><a href="#cb7-11"></a><span class="co">#&gt; 5 SJAMLM7007_D   SJAMLM7007   Diagnosis         RNA-Seq       bam          NA        AMLM</span></span>
+<span id="cb7-12"><a href="#cb7-12"></a><span class="co">#&gt; 6 SJAMLM7008_D   SJAMLM7008   Diagnosis         RNA-Seq       bam          NA        AMLM</span></span>
+<span id="cb7-13"><a href="#cb7-13"></a><span class="co">#&gt;                              sj_datasets sj_pmid_accessions sj_ega_accessions</span></span>
+<span id="cb7-14"><a href="#cb7-14"></a><span class="co">#&gt; 1 Pediatric Cancer Genome Project (PCGP)           23153540                  </span></span>
+<span id="cb7-15"><a href="#cb7-15"></a><span class="co">#&gt; 2 Pediatric Cancer Genome Project (PCGP)           23153540                  </span></span>
+<span id="cb7-16"><a href="#cb7-16"></a><span class="co">#&gt; 3 Pediatric Cancer Genome Project (PCGP)           23153540   EGAS00001000379</span></span>
+<span id="cb7-17"><a href="#cb7-17"></a><span class="co">#&gt; 4 Pediatric Cancer Genome Project (PCGP)                 NA                  </span></span>
+<span id="cb7-18"><a href="#cb7-18"></a><span class="co">#&gt; 5 Pediatric Cancer Genome Project (PCGP)           23153540                  </span></span>
+<span id="cb7-19"><a href="#cb7-19"></a><span class="co">#&gt; 6 Pediatric Cancer Genome Project (PCGP)           23153540                  </span></span>
+<span id="cb7-20"><a href="#cb7-20"></a><span class="co">#&gt;   sj_dataset_accessions sj_embargo_date attr_age_at_diagnosis                  attr_diagnosis</span></span>
+<span id="cb7-21"><a href="#cb7-21"></a><span class="co">#&gt; 1           SJC-DS-1001     2018,Jul 23                    NA                                </span></span>
+<span id="cb7-22"><a href="#cb7-22"></a><span class="co">#&gt; 2           SJC-DS-1001     2018,Jul 23                    NA                                </span></span>
+<span id="cb7-23"><a href="#cb7-23"></a><span class="co">#&gt; 3           SJC-DS-1001     2018,Jul 23                  2.17 Acute Megakaryoblastic leukemia</span></span>
+<span id="cb7-24"><a href="#cb7-24"></a><span class="co">#&gt; 4           SJC-DS-1001     2018,Jul 23                  1.00 Acute Megakaryoblastic leukemia</span></span>
+<span id="cb7-25"><a href="#cb7-25"></a><span class="co">#&gt; 5           SJC-DS-1001     2018,Jul 23                    NA                                </span></span>
+<span id="cb7-26"><a href="#cb7-26"></a><span class="co">#&gt; 6           SJC-DS-1001     2018,Jul 23                    NA                                </span></span>
+<span id="cb7-27"><a href="#cb7-27"></a><span class="co">#&gt;   attr_ethnicity attr_race attr_sex</span></span>
+<span id="cb7-28"><a href="#cb7-28"></a><span class="co">#&gt; 1                                  </span></span>
+<span id="cb7-29"><a href="#cb7-29"></a><span class="co">#&gt; 2                                  </span></span>
+<span id="cb7-30"><a href="#cb7-30"></a><span class="co">#&gt; 3                            Female</span></span>
+<span id="cb7-31"><a href="#cb7-31"></a><span class="co">#&gt; 4                              Male</span></span>
+<span id="cb7-32"><a href="#cb7-32"></a><span class="co">#&gt; 5                                  </span></span>
+<span id="cb7-33"><a href="#cb7-33"></a><span class="co">#&gt; 6                                  </span></span>
+<span id="cb7-34"><a href="#cb7-34"></a><span class="co">#&gt;                                                                                                           filepath</span></span>
+<span id="cb7-35"><a href="#cb7-35"></a><span class="co">#&gt; 1 /fh/scratch/delete90/meshinchi_s/jlsmith3/STAR-Fusion_St.Jude/SJAMLM7001_D.RNA-Seq_Aligned.sortedByCoord.out.bam</span></span>
+<span id="cb7-36"><a href="#cb7-36"></a><span class="co">#&gt; 2 /fh/scratch/delete90/meshinchi_s/jlsmith3/STAR-Fusion_St.Jude/SJAMLM7003_D.RNA-Seq_Aligned.sortedByCoord.out.bam</span></span>
+<span id="cb7-37"><a href="#cb7-37"></a><span class="co">#&gt; 3 /fh/scratch/delete90/meshinchi_s/jlsmith3/STAR-Fusion_St.Jude/SJAMLM7005_D.RNA-Seq_Aligned.sortedByCoord.out.bam</span></span>
+<span id="cb7-38"><a href="#cb7-38"></a><span class="co">#&gt; 4 /fh/scratch/delete90/meshinchi_s/jlsmith3/STAR-Fusion_St.Jude/SJAMLM7006_D.RNA-Seq_Aligned.sortedByCoord.out.bam</span></span>
+<span id="cb7-39"><a href="#cb7-39"></a><span class="co">#&gt; 5 /fh/scratch/delete90/meshinchi_s/jlsmith3/STAR-Fusion_St.Jude/SJAMLM7007_D.RNA-Seq_Aligned.sortedByCoord.out.bam</span></span>
+<span id="cb7-40"><a href="#cb7-40"></a><span class="co">#&gt; 6 /fh/scratch/delete90/meshinchi_s/jlsmith3/STAR-Fusion_St.Jude/SJAMLM7008_D.RNA-Seq_Aligned.sortedByCoord.out.bam</span></span>
+<span id="cb7-41"><a href="#cb7-41"></a><span class="co">#&gt;                                             filename</span></span>
+<span id="cb7-42"><a href="#cb7-42"></a><span class="co">#&gt; 1 SJAMLM7001_D.RNA-Seq_Aligned.sortedByCoord.out.bam</span></span>
+<span id="cb7-43"><a href="#cb7-43"></a><span class="co">#&gt; 2 SJAMLM7003_D.RNA-Seq_Aligned.sortedByCoord.out.bam</span></span>
+<span id="cb7-44"><a href="#cb7-44"></a><span class="co">#&gt; 3 SJAMLM7005_D.RNA-Seq_Aligned.sortedByCoord.out.bam</span></span>
+<span id="cb7-45"><a href="#cb7-45"></a><span class="co">#&gt; 4 SJAMLM7006_D.RNA-Seq_Aligned.sortedByCoord.out.bam</span></span>
+<span id="cb7-46"><a href="#cb7-46"></a><span class="co">#&gt; 5 SJAMLM7007_D.RNA-Seq_Aligned.sortedByCoord.out.bam</span></span>
+<span id="cb7-47"><a href="#cb7-47"></a><span class="co">#&gt; 6 SJAMLM7008_D.RNA-Seq_Aligned.sortedByCoord.out.bam</span></span></code></pre></div>
+</div>
+<div id="read-in-the-contig-sequences" class="section level1">
+<h1>Read in the Contig Sequences</h1>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1"></a>TA.contigs &lt;-<span class="st"> </span><span class="kw">read.csv</span>(<span class="st">&quot;Data/TransAbyss_Contig_Sequences.csv&quot;</span>)</span>
+<span id="cb8-2"><a href="#cb8-2"></a></span>
+<span id="cb8-3"><a href="#cb8-3"></a><span class="co"># head(TA.contigs)</span></span>
+<span id="cb8-4"><a href="#cb8-4"></a><span class="kw">dim</span>(TA.contigs)  <span class="co">#54,878     4</span></span>
+<span id="cb8-5"><a href="#cb8-5"></a><span class="co">#&gt; [1] 54878     4</span></span></code></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1"></a>cicero.contig &lt;-<span class="st"> </span><span class="kw">read.csv</span>(<span class="st">&quot;Data/CICERO_Contig_Sequences.csv&quot;</span>)</span>
+<span id="cb9-2"><a href="#cb9-2"></a></span>
+<span id="cb9-3"><a href="#cb9-3"></a><span class="co"># head(cicero.contig)</span></span>
+<span id="cb9-4"><a href="#cb9-4"></a><span class="kw">dim</span>(cicero.contig)  <span class="co">#158,972 </span></span>
+<span id="cb9-5"><a href="#cb9-5"></a><span class="co">#&gt; [1] 158972      4</span></span></code></pre></div>
+</div>
+<div id="read-in-the-theoretical-junc-sequences" class="section level1">
+<h1>Read in the Theoretical Junc Sequences</h1>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1"></a>theoretical_data.collapsed &lt;-<span class="st"> </span><span class="kw">read.csv</span>(<span class="st">&quot;Data/Theoretical_Fusion_Breakpoint_Junctions_per_Transcript.csv&quot;</span>)</span>
+<span id="cb10-2"><a href="#cb10-2"></a></span>
+<span id="cb10-3"><a href="#cb10-3"></a><span class="kw">head</span>(theoretical_data.collapsed)</span>
+<span id="cb10-4"><a href="#cb10-4"></a><span class="co">#&gt;       Fusion Fusion.Category</span></span>
+<span id="cb10-5"><a href="#cb10-5"></a><span class="co">#&gt; 1 CBFB-MYH11      CBFB-MYH11</span></span>
+<span id="cb10-6"><a href="#cb10-6"></a><span class="co">#&gt; 2 CBFB-MYH11      CBFB-MYH11</span></span>
+<span id="cb10-7"><a href="#cb10-7"></a><span class="co">#&gt; 3 CBFB-MYH11      CBFB-MYH11</span></span>
+<span id="cb10-8"><a href="#cb10-8"></a><span class="co">#&gt; 4 CBFB-MYH11      CBFB-MYH11</span></span>
+<span id="cb10-9"><a href="#cb10-9"></a><span class="co">#&gt; 5 CBFB-MYH11      CBFB-MYH11</span></span>
+<span id="cb10-10"><a href="#cb10-10"></a><span class="co">#&gt; 6 CBFB-MYH11      CBFB-MYH11</span></span>
+<span id="cb10-11"><a href="#cb10-11"></a><span class="co">#&gt;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          Name</span></span>
+<span id="cb10-12"><a href="#cb10-12"></a><span class="co">#&gt; 1                         NM_001368707.1_NM_001040113.2--Exons1_3|NM_001368707.1_NM_001040114.1--Exons1_3|NM_001368707.1_NM_002474.3--Exons1_3|NM_001368707.1_NM_022844.2--Exons1_3|NM_001368708.1_NM_001040113.2--Exons1_3|NM_001368708.1_NM_001040114.1--Exons1_3|NM_001368708.1_NM_002474.3--Exons1_3|NM_001368708.1_NM_022844.2--Exons1_3|NM_001368709.1_NM_001040113.2--Exons1_3|NM_001368709.1_NM_001040114.1--Exons1_3|NM_001368709.1_NM_002474.3--Exons1_3|NM_001368709.1_NM_022844.2--Exons1_3|NM_001368710.1_NM_001040113.2--Exons1_3|NM_001368710.1_NM_001040114.1--Exons1_3|NM_001368710.1_NM_002474.3--Exons1_3|NM_001368710.1_NM_022844.2--Exons1_3|NM_001755.3_NM_001040113.2--Exons1_3|NM_001755.3_NM_001040114.1--Exons1_3|NM_001755.3_NM_002474.3--Exons1_3|NM_001755.3_NM_022844.2--Exons1_3|NM_022845.3_NM_001040113.2--Exons1_3|NM_022845.3_NM_001040114.1--Exons1_3|NM_022845.3_NM_002474.3--Exons1_3|NM_022845.3_NM_022844.2--Exons1_3</span></span>
+<span id="cb10-13"><a href="#cb10-13"></a><span class="co">#&gt; 2                                                                                                                                                                                                                                                                                                                                                                                                                                                                         NM_001368707.1_NM_001040113.2--Exons1_6|NM_001368707.1_NM_001040114.1--Exons1_6|NM_001368708.1_NM_001040113.2--Exons1_6|NM_001368708.1_NM_001040114.1--Exons1_6|NM_001368709.1_NM_001040113.2--Exons1_6|NM_001368709.1_NM_001040114.1--Exons1_6|NM_001368710.1_NM_001040113.2--Exons1_6|NM_001368710.1_NM_001040114.1--Exons1_6|NM_001755.3_NM_001040113.2--Exons1_6|NM_001755.3_NM_001040114.1--Exons1_6|NM_022845.3_NM_001040113.2--Exons1_6|NM_022845.3_NM_001040114.1--Exons1_6</span></span>
+<span id="cb10-14"><a href="#cb10-14"></a><span class="co">#&gt; 3                         NM_001368707.1_NM_001040113.2--Exons1_7|NM_001368707.1_NM_001040114.1--Exons1_7|NM_001368707.1_NM_002474.3--Exons1_6|NM_001368707.1_NM_022844.2--Exons1_6|NM_001368708.1_NM_001040113.2--Exons1_7|NM_001368708.1_NM_001040114.1--Exons1_7|NM_001368708.1_NM_002474.3--Exons1_6|NM_001368708.1_NM_022844.2--Exons1_6|NM_001368709.1_NM_001040113.2--Exons1_7|NM_001368709.1_NM_001040114.1--Exons1_7|NM_001368709.1_NM_002474.3--Exons1_6|NM_001368709.1_NM_022844.2--Exons1_6|NM_001368710.1_NM_001040113.2--Exons1_7|NM_001368710.1_NM_001040114.1--Exons1_7|NM_001368710.1_NM_002474.3--Exons1_6|NM_001368710.1_NM_022844.2--Exons1_6|NM_001755.3_NM_001040113.2--Exons1_7|NM_001755.3_NM_001040114.1--Exons1_7|NM_001755.3_NM_002474.3--Exons1_6|NM_001755.3_NM_022844.2--Exons1_6|NM_022845.3_NM_001040113.2--Exons1_7|NM_022845.3_NM_001040114.1--Exons1_7|NM_022845.3_NM_002474.3--Exons1_6|NM_022845.3_NM_022844.2--Exons1_6</span></span>
+<span id="cb10-15"><a href="#cb10-15"></a><span class="co">#&gt; 4                         NM_001368707.1_NM_001040113.2--Exons1_8|NM_001368707.1_NM_001040114.1--Exons1_8|NM_001368707.1_NM_002474.3--Exons1_7|NM_001368707.1_NM_022844.2--Exons1_7|NM_001368708.1_NM_001040113.2--Exons1_8|NM_001368708.1_NM_001040114.1--Exons1_8|NM_001368708.1_NM_002474.3--Exons1_7|NM_001368708.1_NM_022844.2--Exons1_7|NM_001368709.1_NM_001040113.2--Exons1_8|NM_001368709.1_NM_001040114.1--Exons1_8|NM_001368709.1_NM_002474.3--Exons1_7|NM_001368709.1_NM_022844.2--Exons1_7|NM_001368710.1_NM_001040113.2--Exons1_8|NM_001368710.1_NM_001040114.1--Exons1_8|NM_001368710.1_NM_002474.3--Exons1_7|NM_001368710.1_NM_022844.2--Exons1_7|NM_001755.3_NM_001040113.2--Exons1_8|NM_001755.3_NM_001040114.1--Exons1_8|NM_001755.3_NM_002474.3--Exons1_7|NM_001755.3_NM_022844.2--Exons1_7|NM_022845.3_NM_001040113.2--Exons1_8|NM_022845.3_NM_001040114.1--Exons1_8|NM_022845.3_NM_002474.3--Exons1_7|NM_022845.3_NM_022844.2--Exons1_7</span></span>
+<span id="cb10-16"><a href="#cb10-16"></a><span class="co">#&gt; 5 NM_001368707.1_NM_001040113.2--Exons1_13|NM_001368707.1_NM_001040114.1--Exons1_13|NM_001368707.1_NM_002474.3--Exons1_12|NM_001368707.1_NM_022844.2--Exons1_12|NM_001368708.1_NM_001040113.2--Exons1_13|NM_001368708.1_NM_001040114.1--Exons1_13|NM_001368708.1_NM_002474.3--Exons1_12|NM_001368708.1_NM_022844.2--Exons1_12|NM_001368709.1_NM_001040113.2--Exons1_13|NM_001368709.1_NM_001040114.1--Exons1_13|NM_001368709.1_NM_002474.3--Exons1_12|NM_001368709.1_NM_022844.2--Exons1_12|NM_001368710.1_NM_001040113.2--Exons1_13|NM_001368710.1_NM_001040114.1--Exons1_13|NM_001368710.1_NM_002474.3--Exons1_12|NM_001368710.1_NM_022844.2--Exons1_12|NM_001755.3_NM_001040113.2--Exons1_13|NM_001755.3_NM_001040114.1--Exons1_13|NM_001755.3_NM_002474.3--Exons1_12|NM_001755.3_NM_022844.2--Exons1_12|NM_022845.3_NM_001040113.2--Exons1_13|NM_022845.3_NM_001040114.1--Exons1_13|NM_022845.3_NM_002474.3--Exons1_12|NM_022845.3_NM_022844.2--Exons1_12</span></span>
+<span id="cb10-17"><a href="#cb10-17"></a><span class="co">#&gt; 6 NM_001368707.1_NM_001040113.2--Exons1_14|NM_001368707.1_NM_001040114.1--Exons1_14|NM_001368707.1_NM_002474.3--Exons1_13|NM_001368707.1_NM_022844.2--Exons1_13|NM_001368708.1_NM_001040113.2--Exons1_14|NM_001368708.1_NM_001040114.1--Exons1_14|NM_001368708.1_NM_002474.3--Exons1_13|NM_001368708.1_NM_022844.2--Exons1_13|NM_001368709.1_NM_001040113.2--Exons1_14|NM_001368709.1_NM_001040114.1--Exons1_14|NM_001368709.1_NM_002474.3--Exons1_13|NM_001368709.1_NM_022844.2--Exons1_13|NM_001368710.1_NM_001040113.2--Exons1_14|NM_001368710.1_NM_001040114.1--Exons1_14|NM_001368710.1_NM_002474.3--Exons1_13|NM_001368710.1_NM_022844.2--Exons1_13|NM_001755.3_NM_001040113.2--Exons1_14|NM_001755.3_NM_001040114.1--Exons1_14|NM_001755.3_NM_002474.3--Exons1_13|NM_001755.3_NM_022844.2--Exons1_13|NM_022845.3_NM_001040113.2--Exons1_14|NM_022845.3_NM_001040114.1--Exons1_14|NM_022845.3_NM_002474.3--Exons1_13|NM_022845.3_NM_022844.2--Exons1_13</span></span>
+<span id="cb10-18"><a href="#cb10-18"></a><span class="co">#&gt;                                             Sequence</span></span>
+<span id="cb10-19"><a href="#cb10-19"></a><span class="co">#&gt; 1 TAGGAAGCTGAGCCGCGAGTGTGAGACGTACTCTGGCCTCTTCTGCGTGG</span></span>
+<span id="cb10-20"><a href="#cb10-20"></a><span class="co">#&gt; 2 TAGGAAGCTGAGCCGCGAGTGTGAGCAAGGCCCATCTTTTGCCTACGGAG</span></span>
+<span id="cb10-21"><a href="#cb10-21"></a><span class="co">#&gt; 3 TAGGAAGCTGAGCCGCGAGTGTGAGGGAGAGCTGGAAAAGCAGCTTCTAC</span></span>
+<span id="cb10-22"><a href="#cb10-22"></a><span class="co">#&gt; 4 TAGGAAGCTGAGCCGCGAGTGTGAGGGCAAATTCATCCGCATCAACTTCG</span></span>
+<span id="cb10-23"><a href="#cb10-23"></a><span class="co">#&gt; 5 TAGGAAGCTGAGCCGCGAGTGTGAGGCTGACTTTGCTGTAGAGGCTTTGG</span></span>
+<span id="cb10-24"><a href="#cb10-24"></a><span class="co">#&gt; 6 TAGGAAGCTGAGCCGCGAGTGTGAGGTGAACTCCTTCGAGCAGCTGTGCA</span></span>
+<span id="cb10-25"><a href="#cb10-25"></a><span class="kw">dim</span>(theoretical_data.collapsed)  <span class="co"># 1955    4</span></span>
+<span id="cb10-26"><a href="#cb10-26"></a><span class="co">#&gt; [1] 1955    4</span></span></code></pre></div>
+</div>
+<div id="chromosome-lengths" class="section level1">
+<h1>Chromosome Lengths</h1>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1"></a>seqlens &lt;-<span class="st"> </span><span class="kw">read.delim</span>(<span class="st">&quot;Data/Grch37.lite_chrom_lengths.txt&quot;</span>) <span class="op">%&gt;%</span><span class="st"> </span></span>
+<span id="cb11-2"><a href="#cb11-2"></a><span class="st">    </span><span class="kw">rownames_to_column</span>(<span class="st">&quot;chr&quot;</span>) <span class="op">%&gt;%</span><span class="st"> </span><span class="kw">pull</span>(x, <span class="dt">name =</span> chr)</span>
+<span id="cb11-3"><a href="#cb11-3"></a></span>
+<span id="cb11-4"><a href="#cb11-4"></a><span class="kw">head</span>(seqlens)</span>
+<span id="cb11-5"><a href="#cb11-5"></a><span class="co">#&gt; 1 CM000663.1 Homo sapiens chromosome 1, GRCh37 primary reference assembly </span></span>
+<span id="cb11-6"><a href="#cb11-6"></a><span class="co">#&gt;                                                                 249250621 </span></span>
+<span id="cb11-7"><a href="#cb11-7"></a><span class="co">#&gt; 2 CM000664.1 Homo sapiens chromosome 2, GRCh37 primary reference assembly </span></span>
+<span id="cb11-8"><a href="#cb11-8"></a><span class="co">#&gt;                                                                 243199373 </span></span>
+<span id="cb11-9"><a href="#cb11-9"></a><span class="co">#&gt; 3 CM000665.1 Homo sapiens chromosome 3, GRCh37 primary reference assembly </span></span>
+<span id="cb11-10"><a href="#cb11-10"></a><span class="co">#&gt;                                                                 198022430 </span></span>
+<span id="cb11-11"><a href="#cb11-11"></a><span class="co">#&gt; 4 CM000666.1 Homo sapiens chromosome 4, GRCh37 primary reference assembly </span></span>
+<span id="cb11-12"><a href="#cb11-12"></a><span class="co">#&gt;                                                                 191154276 </span></span>
+<span id="cb11-13"><a href="#cb11-13"></a><span class="co">#&gt; 5 CM000667.1 Homo sapiens chromosome 5, GRCh37 primary reference assembly </span></span>
+<span id="cb11-14"><a href="#cb11-14"></a><span class="co">#&gt;                                                                 180915260 </span></span>
+<span id="cb11-15"><a href="#cb11-15"></a><span class="co">#&gt; 6 CM000668.1 Homo sapiens chromosome 6, GRCh37 primary reference assembly </span></span>
+<span id="cb11-16"><a href="#cb11-16"></a><span class="co">#&gt;                                                                 171115067</span></span></code></pre></div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1"></a>seqlens.ctat &lt;-<span class="st"> </span><span class="kw">read.delim</span>(<span class="st">&quot;Data/Grch37.ctat_chrom_lengths.txt&quot;</span>) <span class="op">%&gt;%</span><span class="st"> </span></span>
+<span id="cb12-2"><a href="#cb12-2"></a><span class="st">    </span><span class="kw">rownames_to_column</span>(<span class="st">&quot;chr&quot;</span>) <span class="op">%&gt;%</span><span class="st"> </span><span class="kw">pull</span>(x, <span class="dt">name =</span> chr)</span>
+<span id="cb12-3"><a href="#cb12-3"></a></span>
+<span id="cb12-4"><a href="#cb12-4"></a><span class="kw">head</span>(seqlens.ctat)</span>
+<span id="cb12-5"><a href="#cb12-5"></a><span class="co">#&gt;    chr1 1    chr2 2    chr3 3    chr4 4    chr5 5    chr6 6 </span></span>
+<span id="cb12-6"><a href="#cb12-6"></a><span class="co">#&gt; 249250621 243199373 198022430 191154276 180915260 171115067</span></span></code></pre></div>
+</div>
+<div id="define-fusion-groups" class="section level1">
+<h1>Define Fusion Groups</h1>
+<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1"></a>Groups &lt;-<span class="st"> </span><span class="kw">unique</span>(theoretical_data.collapsed<span class="op">$</span>Fusion.Category)</span>
+<span id="cb13-2"><a href="#cb13-2"></a></span>
+<span id="cb13-3"><a href="#cb13-3"></a>Groups</span>
+<span id="cb13-4"><a href="#cb13-4"></a><span class="co">#&gt; [1] &quot;CBFB-MYH11&quot;    &quot;KMT2A-MLLT10&quot;  &quot;KMT2A-MLLT3&quot;   &quot;NSD1-NUP98&quot;    &quot;RUNX1-RUNX1T1&quot;</span></span>
+<span id="cb13-5"><a href="#cb13-5"></a><span class="co">#&gt; [6] &quot;CBFA2T3-GLIS2&quot;</span></span></code></pre></div>
+</div>
+<div id="define-defaults" class="section level1">
+<h1>Define defaults</h1>
+<p>I just need a breakpoint, but since I’ll be searching for evidence in the RNAseq reads for the whole chromosome, don’t need to exact breakpoint junction per patient. Just need a common one, such as</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1"></a>common_breakpoints &lt;-<span class="st"> </span><span class="kw">read.csv</span>(<span class="st">&quot;Data/TARGET_AML_Most_Common_RNAseq_Breakpoints.csv&quot;</span>, </span>
+<span id="cb14-2"><a href="#cb14-2"></a>    <span class="dt">row.names =</span> <span class="dv">1</span>)</span>
+<span id="cb14-3"><a href="#cb14-3"></a></span>
+<span id="cb14-4"><a href="#cb14-4"></a></span>
+<span id="cb14-5"><a href="#cb14-5"></a>common_breakpoints</span>
+<span id="cb14-6"><a href="#cb14-6"></a><span class="co">#&gt;               Fusion.Category               breakpoint                breakpoint_ctat   N</span></span>
+<span id="cb14-7"><a href="#cb14-7"></a><span class="co">#&gt; CBFA2T3-GLIS2   CBFA2T3-GLIS2   16:4384802|16:88945678   chr16:4384802|chr16:88945678  35</span></span>
+<span id="cb14-8"><a href="#cb14-8"></a><span class="co">#&gt; CBFB-MYH11         CBFB-MYH11  16:15814908|16:67116211  chr16:15814908|chr16:67116211  89</span></span>
+<span id="cb14-9"><a href="#cb14-9"></a><span class="co">#&gt; KMT2A-MLLT10     KMT2A-MLLT10 10:21959378|11:118353210 chr10:21959378|chr11:118353210  16</span></span>
+<span id="cb14-10"><a href="#cb14-10"></a><span class="co">#&gt; KMT2A-MLLT3       KMT2A-MLLT3  11:118355029|9:20365742  chr11:118355029|chr9:20365742  29</span></span>
+<span id="cb14-11"><a href="#cb14-11"></a><span class="co">#&gt; NSD1-NUP98         NSD1-NUP98   11:3765739|5:176662822   chr11:3765739|chr5:176662822  65</span></span>
+<span id="cb14-12"><a href="#cb14-12"></a><span class="co">#&gt; RUNX1-RUNX1T1   RUNX1-RUNX1T1   21:36231771|8:93029591   chr21:36231771|chr8:93029591 124</span></span></code></pre></div>
+</div>
+<div id="run-the-function" class="section level1">
+<h1>Run the Function</h1>
+<div id="rslurm" class="section level2">
+<h2>Rslurm</h2>
+<div class="sourceCode" id="cb15"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1"></a>outdir &lt;-<span class="st"> </span><span class="kw">file.path</span>(SCRATCH, <span class="st">&quot;jlsmith3/Fusion_Breakpoints&quot;</span>)</span>
+<span id="cb15-2"><a href="#cb15-2"></a>sopt &lt;-<span class="st"> </span><span class="kw">list</span>(<span class="dt">nodes =</span> <span class="st">&quot;1&quot;</span>, <span class="st">`</span><span class="dt">cpus-per-task</span><span class="st">`</span> =<span class="st"> &quot;2&quot;</span>, <span class="dt">partition =</span> <span class="st">&quot;campus-new&quot;</span>, </span>
+<span id="cb15-3"><a href="#cb15-3"></a>    <span class="dt">mem =</span> <span class="st">&quot;40G&quot;</span>, <span class="dt">time =</span> <span class="st">&quot;48:00:00&quot;</span>, <span class="st">`</span><span class="dt">mail-type</span><span class="st">`</span> =<span class="st"> &quot;FAIL,END&quot;</span>, </span>
+<span id="cb15-4"><a href="#cb15-4"></a>    <span class="st">`</span><span class="dt">mail-user</span><span class="st">`</span> =<span class="st"> &quot;jlsmith3@fredhutch.org&quot;</span>)</span></code></pre></div>
+<div id="polya" class="section level3">
+<h3>polyA</h3>
+<div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1"></a><span class="kw">setwd</span>(outdir)</span>
+<span id="cb16-2"><a href="#cb16-2"></a>jobs1 &lt;-<span class="st"> </span><span class="kw">lapply</span>(Groups, submit_slurm_per_fusion, <span class="dt">file_manifest =</span> polyA_RNAseq_files, </span>
+<span id="cb16-3"><a href="#cb16-3"></a>    <span class="dt">chromLengths =</span> seqlens, <span class="dt">cohort =</span> <span class="st">&quot;polyA_RNAseq&quot;</span>)</span></code></pre></div>
+</div>
+<div id="rbd" class="section level3">
+<h3>RBD</h3>
+<div class="sourceCode" id="cb17"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1"></a><span class="kw">setwd</span>(outdir)</span>
+<span id="cb17-2"><a href="#cb17-2"></a>RBD_RNAseq_files &lt;-<span class="st"> </span>RBD_RNAseq_files <span class="op">%&gt;%</span><span class="st"> </span><span class="kw">filter</span>(<span class="kw">grepl</span>(<span class="st">&quot;AML|NBM|CD34_PB&quot;</span>, </span>
+<span id="cb17-3"><a href="#cb17-3"></a>    Group), <span class="kw">grepl</span>(<span class="st">&quot;diagnostic|NBM|CD34_NBM&quot;</span>, Time_point))</span>
+<span id="cb17-4"><a href="#cb17-4"></a></span>
+<span id="cb17-5"><a href="#cb17-5"></a>jobs2 &lt;-<span class="st"> </span><span class="kw">lapply</span>(Groups, submit_slurm_per_fusion, <span class="dt">file_manifest =</span> RBD_RNAseq_files, </span>
+<span id="cb17-6"><a href="#cb17-6"></a>    <span class="dt">chromLengths =</span> seqlens, <span class="dt">cohort =</span> <span class="st">&quot;RBD_RNAseq&quot;</span>)</span></code></pre></div>
+</div>
+<div id="st.jude" class="section level3">
+<h3>St.Jude</h3>
+<div class="sourceCode" id="cb18"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1"></a><span class="kw">setwd</span>(outdir)</span>
+<span id="cb18-2"><a href="#cb18-2"></a>jobs3 &lt;-<span class="st"> </span><span class="kw">lapply</span>(Groups, submit_slurm_per_fusion, <span class="dt">file_manifest =</span> SJ_RNAseq_files, </span>
+<span id="cb18-3"><a href="#cb18-3"></a>    <span class="dt">chromLengths =</span> seqlens.ctat, <span class="dt">cohort =</span> <span class="st">&quot;SJ_RNAseq&quot;</span>)</span></code></pre></div>
+</div>
+</div>
+<div id="furrr-future-map" class="section level2">
+<h2>Furrr (Future map)</h2>
+<div class="sourceCode" id="cb19"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1"></a><span class="kw">library</span>(furrr)</span>
+<span id="cb19-2"><a href="#cb19-2"></a>future<span class="op">::</span><span class="kw">plan</span>(<span class="st">&quot;multisession&quot;</span>)</span>
+<span id="cb19-3"><a href="#cb19-3"></a><span class="co"># future::plan(&#39;sequential&#39;)</span></span>
+<span id="cb19-4"><a href="#cb19-4"></a><span class="kw">plan</span>()</span>
+<span id="cb19-5"><a href="#cb19-5"></a><span class="kw">availableCores</span>()</span></code></pre></div>
+<div class="sourceCode" id="cb20"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1"></a><span class="kw">setwd</span>(outdir)</span>
+<span id="cb20-2"><a href="#cb20-2"></a><span class="cf">for</span> (i <span class="cf">in</span> <span class="dv">1</span><span class="op">:</span><span class="kw">length</span>(Groups)) {</span>
+<span id="cb20-3"><a href="#cb20-3"></a>    <span class="co"># The fusion group to investigate</span></span>
+<span id="cb20-4"><a href="#cb20-4"></a>    group &lt;-<span class="st"> </span>Groups[i]</span>
+<span id="cb20-5"><a href="#cb20-5"></a>    breakpoint &lt;-<span class="st"> </span>common_breakpoints[group, <span class="st">&quot;breakpoint&quot;</span>]</span>
+<span id="cb20-6"><a href="#cb20-6"></a>    <span class="kw">print</span>(group)</span>
+<span id="cb20-7"><a href="#cb20-7"></a>    <span class="kw">print</span>(breakpoint)</span>
+<span id="cb20-8"><a href="#cb20-8"></a>    </span>
+<span id="cb20-9"><a href="#cb20-9"></a>    <span class="co"># Filter the sequence data for the fusion to</span></span>
+<span id="cb20-10"><a href="#cb20-10"></a>    <span class="co"># investigate</span></span>
+<span id="cb20-11"><a href="#cb20-11"></a>    fusion_theoretical_input &lt;-<span class="st"> </span><span class="kw">filter</span>(theoretical_data.collapsed, </span>
+<span id="cb20-12"><a href="#cb20-12"></a>        Fusion.Category <span class="op">==</span><span class="st"> </span>group)</span>
+<span id="cb20-13"><a href="#cb20-13"></a>    cicero.contig_input &lt;-<span class="st"> </span><span class="kw">filter</span>(cicero.contig, Fusion.Category <span class="op">==</span><span class="st"> </span></span>
+<span id="cb20-14"><a href="#cb20-14"></a><span class="st">        </span>group)</span>
+<span id="cb20-15"><a href="#cb20-15"></a>    TA.contigs_input &lt;-<span class="st"> </span><span class="kw">filter</span>(TA.contigs, Fusion.Category <span class="op">==</span><span class="st"> </span></span>
+<span id="cb20-16"><a href="#cb20-16"></a><span class="st">        </span>group)</span>
+<span id="cb20-17"><a href="#cb20-17"></a>    </span>
+<span id="cb20-18"><a href="#cb20-18"></a>    <span class="co"># I forgot seqs need to be the same width for pdict</span></span>
+<span id="cb20-19"><a href="#cb20-19"></a>    <span class="co"># objects. hopefully will change soon.</span></span>
+<span id="cb20-20"><a href="#cb20-20"></a>    <span class="kw">try</span>(mut20 &lt;-<span class="st"> </span><span class="kw">create_custom_pdict</span>(<span class="dt">theoretical_seqs_df =</span> <span class="kw">filter</span>(fusion_theoretical_input, </span>
+<span id="cb20-21"><a href="#cb20-21"></a>        <span class="kw">grepl</span>(<span class="st">&quot;Mutseq20&quot;</span>, Name))), <span class="dt">silent =</span> T)</span>
+<span id="cb20-22"><a href="#cb20-22"></a>    <span class="kw">try</span>(mut25 &lt;-<span class="st"> </span><span class="kw">create_custom_pdict</span>(<span class="dt">theoretical_seqs_df =</span> <span class="kw">filter</span>(fusion_theoretical_input, </span>
+<span id="cb20-23"><a href="#cb20-23"></a>        <span class="op">!</span><span class="kw">grepl</span>(<span class="st">&quot;Mutseq20&quot;</span>, Name))), <span class="dt">silent =</span> T)</span>
+<span id="cb20-24"><a href="#cb20-24"></a>    </span>
+<span id="cb20-25"><a href="#cb20-25"></a>    <span class="cf">for</span> (n <span class="cf">in</span> <span class="dv">1</span><span class="op">:</span><span class="dv">2</span>) {</span>
+<span id="cb20-26"><a href="#cb20-26"></a>        </span>
+<span id="cb20-27"><a href="#cb20-27"></a>        mutseq &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;mut20&quot;</span>, <span class="st">&quot;mut25&quot;</span>)[n]</span>
+<span id="cb20-28"><a href="#cb20-28"></a>        <span class="kw">try</span>(pdict_obj &lt;-<span class="st"> </span><span class="kw">get</span>(mutseq), <span class="dt">silent =</span> T)</span>
+<span id="cb20-29"><a href="#cb20-29"></a>        fname &lt;-<span class="st"> </span><span class="kw">paste0</span>(<span class="st">&quot;Rdata/TARGET_AML_&quot;</span>, group, </span>
+<span id="cb20-30"><a href="#cb20-30"></a>            <span class="st">&quot;_polyA_RNAseq_&quot;</span>, mutseq, <span class="st">&quot;.RDS&quot;</span>)</span>
+<span id="cb20-31"><a href="#cb20-31"></a>        </span>
+<span id="cb20-32"><a href="#cb20-32"></a>        <span class="cf">if</span> (<span class="kw">exists</span>(<span class="st">&quot;pdict_obj&quot;</span>)) {</span>
+<span id="cb20-33"><a href="#cb20-33"></a>            <span class="co"># some groups do not have both types of data.</span></span>
+<span id="cb20-34"><a href="#cb20-34"></a>            samps &lt;-<span class="st"> </span><span class="kw">as.list</span>(<span class="kw">pull</span>(polyA_RNAseq_files, </span>
+<span id="cb20-35"><a href="#cb20-35"></a>                Sample))</span>
+<span id="cb20-36"><a href="#cb20-36"></a>            tictoc<span class="op">::</span><span class="kw">tic</span>()</span>
+<span id="cb20-37"><a href="#cb20-37"></a>            polyA_evidence &lt;-<span class="st"> </span>furrr<span class="op">::</span><span class="kw">future_map_dfr</span>(samps, </span>
+<span id="cb20-38"><a href="#cb20-38"></a>                examine_breakpoint_evidence, <span class="dt">breakpoint =</span> breakpoint, </span>
+<span id="cb20-39"><a href="#cb20-39"></a>                <span class="dt">file_manifest =</span> polyA_RNAseq_files, </span>
+<span id="cb20-40"><a href="#cb20-40"></a>                <span class="dt">Seqlens =</span> seqlens, <span class="dt">fusion_theoretical_pdict =</span> pdict_obj, </span>
+<span id="cb20-41"><a href="#cb20-41"></a>                <span class="dt">cicero.contig =</span> cicero.contig_input, </span>
+<span id="cb20-42"><a href="#cb20-42"></a>                <span class="dt">TA.contigs =</span> TA.contigs_input, <span class="dt">.progress =</span> <span class="ot">TRUE</span>)</span>
+<span id="cb20-43"><a href="#cb20-43"></a>            tictoc<span class="op">::</span><span class="kw">toc</span>()</span>
+<span id="cb20-44"><a href="#cb20-44"></a>            </span>
+<span id="cb20-45"><a href="#cb20-45"></a>            <span class="co"># Save output to RDS data</span></span>
+<span id="cb20-46"><a href="#cb20-46"></a>            <span class="kw">saveRDS</span>(polyA_evidence, fname)</span>
+<span id="cb20-47"><a href="#cb20-47"></a>            </span>
+<span id="cb20-48"><a href="#cb20-48"></a>            <span class="co"># remove large objects from memory</span></span>
+<span id="cb20-49"><a href="#cb20-49"></a>            <span class="kw">rm</span>(pdict_obj)</span>
+<span id="cb20-50"><a href="#cb20-50"></a>            <span class="kw">rm</span>(polyA_evidence)</span>
+<span id="cb20-51"><a href="#cb20-51"></a>            <span class="kw">gc</span>()</span>
+<span id="cb20-52"><a href="#cb20-52"></a>        }</span>
+<span id="cb20-53"><a href="#cb20-53"></a>    }</span>
+<span id="cb20-54"><a href="#cb20-54"></a>}</span></code></pre></div>
+</div>
+</div>
+<div id="session-information" class="section level1">
+<h1>Session Information</h1>
+<div class="sourceCode" id="cb21"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1"></a><span class="kw">sessionInfo</span>()</span>
+<span id="cb21-2"><a href="#cb21-2"></a><span class="co">#&gt; R version 4.0.2 (2020-06-22)</span></span>
+<span id="cb21-3"><a href="#cb21-3"></a><span class="co">#&gt; Platform: x86_64-pc-linux-gnu (64-bit)</span></span>
+<span id="cb21-4"><a href="#cb21-4"></a><span class="co">#&gt; Running under: Ubuntu 18.04.5 LTS</span></span>
+<span id="cb21-5"><a href="#cb21-5"></a><span class="co">#&gt; </span></span>
+<span id="cb21-6"><a href="#cb21-6"></a><span class="co">#&gt; Matrix products: default</span></span>
+<span id="cb21-7"><a href="#cb21-7"></a><span class="co">#&gt; BLAS/LAPACK: /app/software/OpenBLAS/0.3.7-GCC-8.3.0/lib/libopenblas_haswellp-r0.3.7.so</span></span>
+<span id="cb21-8"><a href="#cb21-8"></a><span class="co">#&gt; </span></span>
+<span id="cb21-9"><a href="#cb21-9"></a><span class="co">#&gt; locale:</span></span>
+<span id="cb21-10"><a href="#cb21-10"></a><span class="co">#&gt;  [1] LC_CTYPE=en_US.UTF-8       LC_NUMERIC=C               LC_TIME=en_US.UTF-8       </span></span>
+<span id="cb21-11"><a href="#cb21-11"></a><span class="co">#&gt;  [4] LC_COLLATE=en_US.UTF-8     LC_MONETARY=en_US.UTF-8    LC_MESSAGES=en_US.UTF-8   </span></span>
+<span id="cb21-12"><a href="#cb21-12"></a><span class="co">#&gt;  [7] LC_PAPER=en_US.UTF-8       LC_NAME=C                  LC_ADDRESS=C              </span></span>
+<span id="cb21-13"><a href="#cb21-13"></a><span class="co">#&gt; [10] LC_TELEPHONE=C             LC_MEASUREMENT=en_US.UTF-8 LC_IDENTIFICATION=C       </span></span>
+<span id="cb21-14"><a href="#cb21-14"></a><span class="co">#&gt; </span></span>
+<span id="cb21-15"><a href="#cb21-15"></a><span class="co">#&gt; attached base packages:</span></span>
+<span id="cb21-16"><a href="#cb21-16"></a><span class="co">#&gt; [1] stats     graphics  grDevices utils     datasets  methods   base     </span></span>
+<span id="cb21-17"><a href="#cb21-17"></a><span class="co">#&gt; </span></span>
+<span id="cb21-18"><a href="#cb21-18"></a><span class="co">#&gt; other attached packages:</span></span>
+<span id="cb21-19"><a href="#cb21-19"></a><span class="co">#&gt; [1] stringr_1.4.0            tibble_3.0.1             dplyr_1.0.0             </span></span>
+<span id="cb21-20"><a href="#cb21-20"></a><span class="co">#&gt; [4] magrittr_1.5             fusBreakpoint_0.0.0.9000 testthat_2.3.2          </span></span>
+<span id="cb21-21"><a href="#cb21-21"></a><span class="co">#&gt; [7] devtools_2.3.0           usethis_1.6.3           </span></span>
+<span id="cb21-22"><a href="#cb21-22"></a><span class="co">#&gt; </span></span>
+<span id="cb21-23"><a href="#cb21-23"></a><span class="co">#&gt; loaded via a namespace (and not attached):</span></span>
+<span id="cb21-24"><a href="#cb21-24"></a><span class="co">#&gt;  [1] Rcpp_1.0.5           prettyunits_1.1.1    ps_1.3.3             Biostrings_2.56.0   </span></span>
+<span id="cb21-25"><a href="#cb21-25"></a><span class="co">#&gt;  [5] assertthat_0.2.1     rprojroot_1.3-2      digest_0.6.25        rslurm_0.5.0        </span></span>
+<span id="cb21-26"><a href="#cb21-26"></a><span class="co">#&gt;  [9] R6_2.4.1             backports_1.1.8      stats4_4.0.2         evaluate_0.14       </span></span>
+<span id="cb21-27"><a href="#cb21-27"></a><span class="co">#&gt; [13] ggplot2_3.3.2        pillar_1.4.4         zlibbioc_1.34.0      rlang_0.4.6         </span></span>
+<span id="cb21-28"><a href="#cb21-28"></a><span class="co">#&gt; [17] rstudioapi_0.11      whisker_0.4          callr_3.4.3          S4Vectors_0.26.1    </span></span>
+<span id="cb21-29"><a href="#cb21-29"></a><span class="co">#&gt; [21] rmarkdown_2.3        desc_1.2.0           loo_2.2.0            munsell_0.5.0       </span></span>
+<span id="cb21-30"><a href="#cb21-30"></a><span class="co">#&gt; [25] compiler_4.0.2       xfun_0.15            rstan_2.19.3         pkgconfig_2.0.3     </span></span>
+<span id="cb21-31"><a href="#cb21-31"></a><span class="co">#&gt; [29] BiocGenerics_0.34.0  pkgbuild_1.0.8       htmltools_0.5.0      tidyselect_1.1.0    </span></span>
+<span id="cb21-32"><a href="#cb21-32"></a><span class="co">#&gt; [33] gridExtra_2.3        IRanges_2.22.2       matrixStats_0.56.0   fansi_0.4.1         </span></span>
+<span id="cb21-33"><a href="#cb21-33"></a><span class="co">#&gt; [37] crayon_1.3.4         withr_2.2.0          grid_4.0.2           gtable_0.3.0        </span></span>
+<span id="cb21-34"><a href="#cb21-34"></a><span class="co">#&gt; [41] lifecycle_0.2.0      formatR_1.7          StanHeaders_2.21.0-5 scales_1.1.1        </span></span>
+<span id="cb21-35"><a href="#cb21-35"></a><span class="co">#&gt; [45] RcppParallel_5.0.2   cli_2.0.2            stringi_1.4.6        XVector_0.28.0      </span></span>
+<span id="cb21-36"><a href="#cb21-36"></a><span class="co">#&gt; [49] fs_1.4.2             remotes_2.1.1        ellipsis_0.3.1       generics_0.0.2      </span></span>
+<span id="cb21-37"><a href="#cb21-37"></a><span class="co">#&gt; [53] vctrs_0.3.1          tools_4.0.2          glue_1.4.1           purrr_0.3.4         </span></span>
+<span id="cb21-38"><a href="#cb21-38"></a><span class="co">#&gt; [57] processx_3.4.2       pkgload_1.1.0        parallel_4.0.2       yaml_2.2.1          </span></span>
+<span id="cb21-39"><a href="#cb21-39"></a><span class="co">#&gt; [61] inline_0.3.15        colorspace_1.4-1     sessioninfo_1.1.1    memoise_1.1.0       </span></span>
+<span id="cb21-40"><a href="#cb21-40"></a><span class="co">#&gt; [65] knitr_1.29</span></span></code></pre></div>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
