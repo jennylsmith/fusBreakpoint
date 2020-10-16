@@ -36,11 +36,11 @@ a dataframe with the column names, "Name" and "Sequence". Name refers to a uniqu
 
 F. *cicero.contig (optional)*
 a dataframe with the column names, "Sample"," Fusion.Category", and "contig". 
-The dataframe is a very simplified subset of the raw [CICERO][https://github.com/stjude/CICERO] fusion algorithm output. 
+The dataframe is a very simplified subset of the raw [CICERO](https://github.com/stjude/CICERO) fusion algorithm output. 
 
 G. *TA.contigs (optional)*
 a dataframe with the column names, "Sample"," Fusion.Category", and "contig"
-The dataframe is a very simplified subset of the raw [TransAbyss][https://github.com/bcgsc/transabyss] fusion algorithm output. 
+The dataframe is a very simplified subset of the raw [TransAbyss](https://github.com/bcgsc/transabyss) fusion algorithm output. 
 
 TO DO: add STAR-fusion contig support as well. 
 
