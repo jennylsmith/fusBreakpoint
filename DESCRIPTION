@@ -7,7 +7,7 @@ Authors@R:
            role = c("aut", "cre"),
            email = "jennyl.smith12@gmail.com",
            comment = c(ORCID = "0000-0003-0402-2779"))
-Description: What the package does (one paragraph).
+Description: A way to simplify sequence search across multiple BAM files to identify fusion exon junction supporting reads. 
 License: GPL-3
 Encoding: UTF-8
 LazyData: true

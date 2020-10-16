@@ -254,7 +254,6 @@ jobs3 <- lapply(Groups,
 ```
 
 
-
 ## Furrr (Future map)
 
 ```{r eval=FALSE}
