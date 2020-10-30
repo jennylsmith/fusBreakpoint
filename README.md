@@ -2,6 +2,13 @@
 
 A package to simplify the extraction of fusion junction sequences from RNAseq BAM files, using the Biostrings Bioconductor framework. 
 
+
+## Installation
+
+```
+devtools::install_github("jennylsmith/fusBreakpoint")
+```
+
 ## Usage:
 
 0. You will need the following files as input: 
