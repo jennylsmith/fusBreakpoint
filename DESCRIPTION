@@ -29,5 +29,6 @@ Imports:
     Rsamtools,
     GenomicRanges,
     S4Vectors,
-    tidyr
+    tidyr,
+    rjson
 VignetteBuilder: knitr

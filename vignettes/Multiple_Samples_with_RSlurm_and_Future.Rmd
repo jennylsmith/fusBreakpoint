@@ -37,10 +37,10 @@ knitr::opts_chunk$set(
 
 ```{r}
 #Function to wrap up all the RSlurm submissions for the different fusion groups and fusion sequences. 
-submit_slurm_per_fusion <- function(fusion.category, file_manifest, chromLengths, cohort=""){
+submit_slurm_per_fusion <- function(fusion.category, file_manifest, chromLengths, brkpointcol="breakpoint", cohort=""){
   # The fusion group to investigate
   group <- fusion.category
-  breakpoint <- common_breakpoints[group,"breakpoint"]
+  breakpoint <- common_breakpoints[group,brkpointcol]
   print(group)
   print(breakpoint)
   
@@ -250,6 +250,7 @@ jobs3 <- lapply(Groups,
        submit_slurm_per_fusion, 
        file_manifest=SJ_RNAseq_files,
        chromLengths=seqlens.ctat,
+       brkpointcol="breakpoint_ctat",
        cohort="SJ_RNAseq")
 ```
 

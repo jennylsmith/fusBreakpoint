@@ -45,8 +45,6 @@ source(file.path(SCRIPTS,"RNAseq_Analysis/fusBreakpoint/R/survplot_functions.R.b
 ```{r}
 merged <- read.csv(file.path(CDE,"Merged/TARGET_AML_0531_1031_merged_CDEs_9.18.20.csv"))
 
-
-
 merged <- merged %>%
   filter(!is.na(USI), USI != "Unknown") %>%
   set_rownames(.$USI)
@@ -71,11 +69,11 @@ SJCBF <- read.csv("References/SJ_CBF_AML_Clinical_Data.csv") %>%
   mutate(subject_name=str_split_fixed(Sample,"_", n=2)[,1]) %>%
   select(Sample,subject_name, ID, everything())
 
-head(SJCBF)
+# head(SJCBF)
 dim(SJCBF)
 ```
- 
- 
+
+
 #Read in File Manifests 
 
 ```{r}
@@ -126,14 +124,12 @@ head(results_files)
 table(names(results_files))
 ```
 
-
-
-#TARGET AML 
+#Save TARGET AML Results
 
 ```{r}
 TARGET_results <- grep("polyA_|RBD_", results_files, value = T)
 
-# table(names(TARGET_results))
+table(names(TARGET_results))
 length(TARGET_results)
 ```
 
@@ -175,6 +171,7 @@ cat_results <- lapply(seq(2,length(TARGET_results), by=2),
                      left_join(., select(merged, USI,
                                             matches("OS\\.[tei]|EFS\\.[tei]|Event",ignore.case=FALSE)),
                                   by="USI") %>%
+                      mutate_at(vars(Primary.Fusion), ~ifelse(grepl("NBM|PB", Group), Group, .)) %>% 
                       select(Sample,USI,Protocol,
                                Primary.Fusion,Additional.Fusions.CNV,
                                Theoretical_Exon_Junctions,
@@ -190,123 +187,150 @@ cat_results <- lapply(seq(2,length(TARGET_results), by=2),
 ```
 
 
+#Analysis of Breakpoint Evidence
+
+
 ##CBFB-MYH11
 
 ```{r}
 cbfb_mut20_RBD <- read.csv("CBFB.MYH11_Results/TARGET_AML_CBFB_MYH11_RBD_RNAseq_mut20_breakpoint_evidence.csv") %>% 
   mutate(Exons=gsub(".+Exons([0-9]_[0-9]{1,2})_.+", "\\1", Theoretical_Exon_Junctions)) %>%
-  select(Sample:Additional.Fusions.CNV, Exons,Num_Junction_Breakpoint_Reads, everything())
+  dplyr::select(Sample:Additional.Fusions.CNV, Exons,Num_Junction_Breakpoint_Reads, everything())
 
 head(cbfb_mut20_RBD)
 length(unique(cbfb_mut20_RBD$Sample)) #1617
-table(unique(cbfb_mut20_RBD$USI) %in% cbfb_res_orig$USI) #101 shared 
 ```
 
 ```{r}
 cbfb_mut20_polyA <- read.csv("CBFB.MYH11_Results/TARGET_AML_CBFB_MYH11_polyA_RNAseq_mut20_breakpoint_evidence.csv") %>% 
   mutate(Exons=gsub(".+Exons([0-9]_[0-9]{1,2})_.+", "\\1", Theoretical_Exon_Junctions)) %>%
-  select(Sample:Additional.Fusions.CNV, Exons,Num_Junction_Breakpoint_Reads, everything())
+  dplyr::select(Sample:Additional.Fusions.CNV, Exons,Num_Junction_Breakpoint_Reads, everything())
 
 head(cbfb_mut20_polyA)
 length(unique(cbfb_mut20_polyA$Sample)) # 508
-table(unique(cbfb_mut20_polyA$USI) %in% cbfb_res_orig$USI) #57 shared 
 ```
+
+
+```{r}
+cbfb_all <- cbfb_mut20_RBD %>% 
+  bind_rows(., cbfb_mut20_polyA) %>% 
+  # filter(!USI %in% ineligables) %>%
+  
+  group_by(Sample,Lib_Prep) %>%
+  mutate(CBFB_MYH11_True_Positive=case_when(
+   (grepl("CBFB-MYH11", Primary.Fusion) | grepl("CBFB-MYH11", Additional.Fusions.CNV)) & any(Num_Junction_Breakpoint_Reads > 0) ~ "TP",
+   !(grepl("CBFB-MYH11", Primary.Fusion) | grepl("CBFB-MYH11", Additional.Fusions.CNV)) & any(Num_Junction_Breakpoint_Reads > 0) ~ "FP", 
+   (grepl("CBFB-MYH11", Primary.Fusion) | grepl("CBFB-MYH11", Additional.Fusions.CNV)) & any(Num_Junction_Breakpoint_Reads == 0) ~ "FN", 
+   !(grepl("CBFB-MYH11", Primary.Fusion) | grepl("CBFB-MYH11", Additional.Fusions.CNV)) & any(Num_Junction_Breakpoint_Reads == 0) ~ "TN")) %>% 
+  
+  ungroup() %>%
+  dplyr::select(Sample:Additional.Fusions.CNV,CBFB_MYH11_True_Positive, everything())
+
+
+# dim(cbfb_all) #10625    34
+# length(unique(cbfb_all$Sample)) #1967 (1961 without ineligables)
+head(cbfb_all)
+```
+
 
 ## Check with the original 
 
 ```{r}
-cbfb_res_orig <- xlsx::read.xlsx("CBFB.MYH11_Results/TARGET_0531_1031.CBFB-MYH11.FusionBreakpoint.Unmasked.xlsx", sheetIndex = 1)
+cbfb_res_orig <- xlsx::read.xlsx("CBFB.MYH11_Results/Theoretical_data/TARGET_0531_1031.CBFB-MYH11.FusionBreakpoint.Unmasked.xlsx", sheetIndex = 1)
 
-head(cbfb_res_orig)
+# head(cbfb_res_orig)
 dim(cbfb_res_orig)#152   4
 length(unique(cbfb_res_orig$USI))
 ```
 
 ```{r}
-check <- cbfb_mut20_RBD %>% 
-  bind_rows(., cbfb_mut20_polyA) %>% 
-  inner_join(., cbfb_res_orig, by="USI") %>%
-  select(Sample:Exons,Fusion_Breakpoint_Unmasked, Fusion_Breakpoint, everything()) %>%
-  filter(Num_Junction_Breakpoint_Reads > 0) %>%
-  mutate(Different=ifelse(Exons==Fusion_Breakpoint_Unmasked, "No", "Yes")) %>%
-  arrange(desc(Fusion_Breakpoint), Fusion_Breakpoint_Unmasked, USI) %>%
-  select(Sample:Additional.Fusions.CNV,Lib_Prep, Different, everything())
+check <- cbfb_res_orig  %>% 
+  inner_join(., cbfb_all,
+             by="USI") %>%
+  select(Sample:Exons,CBFB_MYH11_True_Positive,
+         Fusion_Breakpoint_Unmasked, Fusion_Breakpoint, everything()) %>%
+  
+  group_by(Sample, Lib_Prep) %>%
+  mutate(Keep=case_when(
+    Num_Junction_Breakpoint_Reads > 0 ~ TRUE, 
+    Num_Junction_Breakpoint_Reads == 0 & CBFB_MYH11_True_Positive == "FN" ~ !duplicated(Sample),
+    TRUE ~ FALSE)) %>%
+  ungroup() %>%
+  # filter(Num_Junction_Breakpoint_Reads > 0) %>%
+  
+  # mutate(Different=ifelse(Exons==Fusion_Breakpoint_Unmasked, "No", "Yes")) %>%
+  # arrange(desc(Fusion_Breakpoint), Fusion_Breakpoint_Unmasked, USI) %>%
+  select(Keep, Sample:Additional.Fusions.CNV,Lib_Prep,
+         # Different,
+         everything())
 
-table(check$Different, useNA='ifany')
-table(duplicated(check$USI))
+check
+
+
+
+
+# table(check$Different, useNA='ifany')
+# table(duplicated(check$USI))
 # write.csv(check,"CBFB_MYH11_Check.csv", row.names = FALSE)
 ```
 
 
+```{r}
+toFill <- cbfb_all %>% 
+  filter(CBFB_MYH11_True_Positive=="TP", Num_Junction_Breakpoint_Reads >0) %>% 
+  filter(! USI %in% cbfb_res_orig$USI) %>% 
+  select(Sample,USI, Exons)
+
+# toFill
+dim(toFill)
+# write.csv(toFill,"CBFB.MYH11_Results/TARGET_AML_CBFB-MYH11_RNAseq_mut20_bySeq_Search.csv", row.names = FALSE)
+```
+
+
+
 ## Specificty and Sensitivity
 
-```{r}
-inv.16 <- merged %>% 
-  filter(!USI %in% ineligables) %>%
-  # filter(!is.na(EFS.time..days.)) %>%
-  filter(grepl("CBFB-MYH11", Primary.Fusion) | grepl("CBFB-MYH11", Additional.Fusions.CNV)) %>% 
-  pull(USI)
 
-length(inv.16)
+```{r}
+cbfb_all %>% 
+  select(Sample,CBFB_MYH11_True_Positive) %>% 
+  unique() %>% 
+  group_by(CBFB_MYH11_True_Positive) %>% 
+  summarise(N=n()) %>% 
+  ungroup()
 ```
 
 ```{r}
-cbfb_all <- cbfb_mut20_RBD %>% 
-  bind_rows(., cbfb_mut20_polyA)
+FN_all <- filter(cbfb_all, CBFB_MYH11_True_Positive == "FN") %>% 
+  arrange(Protocol) %>% 
+  dplyr::select(Sample,USI,Protocol, Lib_Prep,
+                Primary.Fusion, Additional.Fusions.CNV, CBFB_MYH11_True_Positive)  %>% 
+  unique()
 
+FN_all #13 False negatives (not so great)
 
-dim(cbfb_all) #10625    33
-length(unique(cbfb_all$Sample)) #1967
-head(cbfb_all)
+# table(FN_all$USI %in% ineligables)
+# table(FN_all$USI %in% cbfb_res_orig$USI)
 ```
 
-```{r}
-table(cbfb_res_orig$USI %in% cbfb_all$USI)
-# table(unique(cbfb_all$USI) %in% unique(cbfb_res_orig$USI))
-New <- setdiff(unique(cbfb_all$USI), unique(cbfb_res_orig$USI))
-New <- New[New %in% inv.16]
+TARGET.20.PARAHF.09A.01R	#Low depth
+TARGET.20.PASGKA.09A.01R # Low depth 
+TARGET.20.PASVVM.09A.01R #low depth
 
-length(New)
-```
+TARGET.20.PAURKG.09A.01R #RBD
+TARGET.20.PAWHTL.03A.01R #RBD 
+TARGET.20.PAWNIK.09A.01R #RBD
 
-```{r}
-Filled <- cbfb_all %>% 
-  filter(USI %in% New) %>% 
-  filter(Num_Junction_Breakpoint_Reads >0)  %>%
-  mutate(Breakpoint_Group=ifelse(Exons=="5_33", "A","B")) %>%
-  arrange(desc(Breakpoint_Group),USI)
-
-dim(Filled)
-any(duplicated(Filled$Sample)) #FALSE
-table(Filled$Breakpoint_Group)
-```
-
-```{r}
-cbf_false_neg <- cbfb_all %>% 
-  filter(USI %in% New) %>% 
-  group_by(Sample) %>%
-  summarise(Any_Read_Evidence=ifelse(any(Num_Junction_Breakpoint_Reads > 0), "Yes", "No")) %>%
-  arrange(Any_Read_Evidence,Sample)
-
-table(cbf_false_neg$Any_Read_Evidence)
-```
-
-```{r}
-FN <- filter(cbf_false_neg, Any_Read_Evidence=="No") %>% 
-  pull(Sample) %>%
-  str_split_fixed(.,"\\.", n=5) %>%
-  .[,3]
-
-knownFP <- merged %>% 
-  filter(USI %in% FN) %>%
-  select(USI,Primary.CNV, Primary.Fusion, Additional.Fusions.CNV, Cyto.vs..Seq) %>% 
-  arrange(Cyto.vs..Seq)
-
-table(knownFP$Cyto.vs..Seq)
-```
 
 
 # ST.Jude Data
+
+```{r}
+#Need STAR fusion data in order to see how many Inv.16 were detected. 
+star.fmt.primary <- read.csv(file.path("St.Jude_AML_ALL_STAR_Fusion_reformatted_FilteredForNBM_PrimaryFusions_10.12.20.csv"),
+                             row.names=FALSE)
+```
+
 
 ```{r}
 SJ_results <- grep("_SJ_", results_files, value = T)
@@ -321,7 +345,7 @@ cat_results <- lapply(seq(2,length(SJ_results), by=2),
                 #select the results files  (in two parts)
                 rds0 <- SJ_results[i-1]
                 rds1 <- SJ_results[i]
-                # print(c(rds0,rds1))
+                print(c(rds0,rds1))
                 
                 #define output filename and destination
                 fname <- str_split_fixed(rds0,"\\/", n=9)[,8] %>% 
@@ -331,45 +355,23 @@ cat_results <- lapply(seq(2,length(SJ_results), by=2),
                 fusion <- unique(c(names(rds0),names(rds1)))
                 print(fusion)
                 destination <- paste0(getwd(), "/", fusion, "_Results")
-                suppressWarnings(dir.create(destination,recursive = T))
+                # suppressWarnings(dir.create(destination,recursive = T))
                 
-                #read in the results
-                res <- purrr::map_dfr(c(rds0, rds1), function(x) bind_rows(readRDS(x)))
-                
-                # RNAseq batch annotations
-                if(grepl("polyA", rds0)){
-                  res <- res %>%
-                      left_join(., select(polyA_RNAseq_files, -filename, -filepath),
-                              by="Sample") 
-                }else{
-                  res <- res %>%
-                      left_join(., select(RBD_RNAseq_files, -filename, -filepath),
-                                by="Sample") 
-                }
-                
-                #merge in clinical annotations
-                res <- res %>%
-                     left_join(., select(merged, USI,
-                                            matches("OS\\.[tei]|EFS\\.[tei]|Event",ignore.case=FALSE)),
-                                  by="USI") %>%
-                      select(Sample,USI,Protocol,
-                               Primary.Fusion,Additional.Fusions.CNV,
-                               Theoretical_Exon_Junctions,
-                              Num_Junction_Breakpoint_Reads,
-                              Num_RNAseq_Reads_Searched,
-                              Lib_Prep:AML_Subtype, everything(),
-                             -Reg., -Final_Patient_ID, -PATIENT_ID_Original)
+                # #read in the results
+                # res <- purrr::map_dfr(c(rds0, rds1), function(x) bind_rows(readRDS(x)))
+                # 
+                # # RNAseq batch annotations
+                # res <- res %>%
+                #       left_join(., select(SJ_RNAseq_files, -filename, -filepath),
+                #               by="Sample") 
+                # 
                 
                 print(paste(destination, fname, sep="/"))
-                write.csv(res,paste(destination, fname, sep="/"), row.names = FALSE)
+                # write.csv(res,paste(destination, fname, sep="/"), row.names = FALSE)
               
 })
 ```
 
-```{r}
-star.fmt.primary <- read.csv(file.path("St.Jude_AML_ALL_STAR_Fusion_reformatted_FilteredForNBM_PrimaryFusions_10.12.20.csv"),
-                             row.names=FALSE)
-```
 
 
 
