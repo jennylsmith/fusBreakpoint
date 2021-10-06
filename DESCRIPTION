@@ -18,7 +18,9 @@ BugReports: https://github.com/jennylsmith/fusBreakpoint/issues
 Suggests: 
     testthat,
     knitr,
-    rmarkdown
+    rmarkdown,
+    markdown,
+    rslurm
 Imports: 
     dplyr,
     stringr,
@@ -29,6 +31,10 @@ Imports:
     Rsamtools,
     GenomicRanges,
     S4Vectors,
+    BiocGenerics,
     tidyr,
-    rjson
+    rjson,
+    survival,
+    ggplot2,
+    GGally
 VignetteBuilder: knitr

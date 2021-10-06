@@ -1,4 +1,6 @@
+*.Rproj.user
+*.Rhistory
+*.RData
+inst/doc/*
 .Rproj.user
-.Rhistory
-.RData
-inst/doc
+core

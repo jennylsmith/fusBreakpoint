@@ -1,15 +1,17 @@
 ---
 title: "Annotate and Summary Stats of Breakpoint Evidence"
+author: "Jenny Leopoldina Smith"
+date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Annotate and Summary Stats of Breakpoint Evidence}
-  %\VignetteEngine{knitr::rmarkdown}
-  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::knitr}
+  %\usepackage[UTF-8]{inputenc}
 ---
 
-#Set-up
+# Set-up
 
-```{r setup}
+```{r setup, include = FALSE}
 knitr::opts_knit$set(
   root.dir = file.path(PROJHOME,"2020.09.15_RNAseq_Fusion_Breakpoints"))
 
@@ -40,7 +42,7 @@ knitr::opts_chunk$set(
 source(file.path(SCRIPTS,"RNAseq_Analysis/fusBreakpoint/R/survplot_functions.R.bak"))
 ```
 
-#ClinData
+#Read in ClinData
 
 ```{r}
 merged <- read.csv(file.path(CDE,"Merged/TARGET_AML_0531_1031_merged_CDEs_9.18.20.csv"))
@@ -73,6 +75,15 @@ SJCBF <- read.csv("References/SJ_CBF_AML_Clinical_Data.csv") %>%
 dim(SJCBF)
 ```
 
+# Read in the Theoretical Junc Sequences
+
+```{r}
+theoretical_data.collapsed <- read.csv("Data/Theoretical_Fusion_Breakpoint_Junctions_per_Transcript.csv")
+
+head(theoretical_data.collapsed)
+dim(theoretical_data.collapsed) # 1955    4
+``` 
+
 
 #Read in File Manifests 
 
@@ -104,7 +115,6 @@ table(duplicated(SJ_RNAseq_files$Sample)) #FALSE
 
 ```{r}
 outdir <- file.path(SCRATCH,'jlsmith3/Fusion_Breakpoints')
-outdir
 ```
 
 ```{r}
@@ -207,9 +217,27 @@ cbfb_mut20_polyA <- read.csv("CBFB.MYH11_Results/TARGET_AML_CBFB_MYH11_polyA_RNA
   dplyr::select(Sample:Additional.Fusions.CNV, Exons,Num_Junction_Breakpoint_Reads, everything())
 
 head(cbfb_mut20_polyA)
-length(unique(cbfb_mut20_polyA$Sample)) # 508
+length(unique(cbfb_mut20_polyA$Sample)) #508
 ```
 
+```{r}
+exon_to_genomicLocus <- xlsx::read.xlsx("References/HutchFusion_neoSplice_CBFB.xlsx", sheetIndex = 1) %>% 
+  select(Exons,Isoform,chrA,posA,chrB,posB,Mut20) %>%
+  distinct() %>%
+  rowwise() %>% 
+  mutate(Breakpoint=paste(paste(chrA,posA, sep=":"), 
+                           paste(chrB,posB, sep = ":"),
+                           sep="|")) %>% 
+  ungroup() %>% 
+  group_by(Exons,Mut20) %>%
+  mutate(Breakpoint=paste(Breakpoint, collapse = "; ")) %>% 
+  arrange(Exons) %>% 
+  select(Exons,Isoform,Mut20, Breakpoint) %>% 
+  distinct()
+
+# exon_to_genomicLocus
+# unique(exon_to_genomicLocus$Mut20) #5
+```
 
 ```{r}
 cbfb_all <- cbfb_mut20_RBD %>% 
@@ -224,6 +252,7 @@ cbfb_all <- cbfb_mut20_RBD %>%
    !(grepl("CBFB-MYH11", Primary.Fusion) | grepl("CBFB-MYH11", Additional.Fusions.CNV)) & any(Num_Junction_Breakpoint_Reads == 0) ~ "TN")) %>% 
   
   ungroup() %>%
+  left_join(., exon_to_genomicLocus, by="Exons") %>% 
   dplyr::select(Sample:Additional.Fusions.CNV,CBFB_MYH11_True_Positive, everything())
 
 
@@ -266,9 +295,6 @@ check <- cbfb_res_orig  %>%
 
 check
 
-
-
-
 # table(check$Different, useNA='ifany')
 # table(duplicated(check$USI))
 # write.csv(check,"CBFB_MYH11_Check.csv", row.names = FALSE)
@@ -279,11 +305,11 @@ check
 toFill <- cbfb_all %>% 
   filter(CBFB_MYH11_True_Positive=="TP", Num_Junction_Breakpoint_Reads >0) %>% 
   filter(! USI %in% cbfb_res_orig$USI) %>% 
-  select(Sample,USI, Exons)
+  select(Sample,USI, Exons,Isoform,Mut20,Breakpoint)
 
 # toFill
-dim(toFill)
-# write.csv(toFill,"CBFB.MYH11_Results/TARGET_AML_CBFB-MYH11_RNAseq_mut20_bySeq_Search.csv", row.names = FALSE)
+# dim(toFill)
+# write.csv(toFill,"CBFB.MYH11_Results/Theoretical_data/TARGET_AML_CBFB-MYH11_RNAseq_mut20_bySeq_Search.csv", row.names = FALSE)
 ```
 
 
@@ -327,8 +353,33 @@ TARGET.20.PAWNIK.09A.01R #RBD
 
 ```{r}
 #Need STAR fusion data in order to see how many Inv.16 were detected. 
-star.fmt.primary <- read.csv(file.path("St.Jude_AML_ALL_STAR_Fusion_reformatted_FilteredForNBM_PrimaryFusions_10.12.20.csv"),
-                             row.names=FALSE)
+star.fmt.primary <- read.csv(file.path("References/St.Jude_AML_ALL_STAR_Fusion_reformatted_FilteredForNBM_PrimaryFusions_10.12.20.csv")) %>% 
+  left_join(., SJ_RNAseq_files, by="Sample")
+
+dim(star.fmt.primary)
+head(star.fmt.primary)
+length(unique(star.fmt.primary$Sample))
+```
+
+```{r}
+
+```
+
+```{r}
+table(SJ_RNAseq_files$sj_diseases)
+
+dim(SJ_RNAseq_files)
+```
+
+```{r}
+CBF.JS <- star.fmt.primary %>% 
+  filter(grepl("CBFB-MYH11", Fusion.Category) | sj_diseases == "CBF") %>% 
+  select(Sample,X.Fusion,sj_diseases) %>% 
+  arrange(X.Fusion)
+
+
+CBF.JS %>% 
+  filter(grepl("CBFB-MYH11", X.Fusion))
 ```
 
 
@@ -345,7 +396,7 @@ cat_results <- lapply(seq(2,length(SJ_results), by=2),
                 #select the results files  (in two parts)
                 rds0 <- SJ_results[i-1]
                 rds1 <- SJ_results[i]
-                print(c(rds0,rds1))
+                # print(c(rds0,rds1))
                 
                 #define output filename and destination
                 fname <- str_split_fixed(rds0,"\\/", n=9)[,8] %>% 
@@ -357,22 +408,31 @@ cat_results <- lapply(seq(2,length(SJ_results), by=2),
                 destination <- paste0(getwd(), "/", fusion, "_Results")
                 # suppressWarnings(dir.create(destination,recursive = T))
                 
-                # #read in the results
-                # res <- purrr::map_dfr(c(rds0, rds1), function(x) bind_rows(readRDS(x)))
-                # 
-                # # RNAseq batch annotations
-                # res <- res %>%
-                #       left_join(., select(SJ_RNAseq_files, -filename, -filepath),
-                #               by="Sample") 
-                # 
+                #read in the results
+                res <- purrr::map_dfr(c(rds0, rds1), function(x) bind_rows(readRDS(x)))
+
+                # RNAseq batch annotations
+                res <- res %>%
+                      left_join(., select(SJ_RNAseq_files, -filename, -filepath),
+                              by="Sample")
+
                 
                 print(paste(destination, fname, sep="/"))
-                # write.csv(res,paste(destination, fname, sep="/"), row.names = FALSE)
+                write.csv(res,paste(destination, fname, sep="/"), row.names = FALSE)
               
 })
 ```
 
+```{r}
+SJ.CBFB <- read.csv("CBFB.MYH11_Results/St.Jude_AML_ALL_CBFB_MYH11_SJ_RNAseq_mut20_breakpoint_evidence.csv")
 
+head(SJ.CBFB)
+```
+
+```{r}
+filter(SJ.CBFB, Num_Junction_Breakpoint_Reads > 0 ) %>% 
+  filter(!duplicated(Sample))
+```
 
 
 #Session Information
